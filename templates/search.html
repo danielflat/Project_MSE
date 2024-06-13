@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <!-- Bootstrap CSS -->
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="background">
+<nav class="navbar bg-body-tertiary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <img src="/static/images/Icon.svg" alt="Logo" width="30" height="24"
+                 class="d-inline-block align-text-top">
+            Tübingo
+        </a>
+        <form class="d-flex searchNav" role="search">
+            <input id="searchQueryNav" class="form-control me-2" type="search" placeholder="Search" aria-label="Search"
+                   value="{{ search_string }}">
+            <button class="btn btn-outline-primary" type="submit">Search</button>
+        </form>
+    </div>
+</nav>
+
+<div class="container bg-light pb-3">
+    <div class="row row-cols-2 row-gap-3">
+        {% for result in results %}
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        TextTitle
+                    </div>
+                    <div class="card-body">
+                    <h5 class="card-title">Special title treatment</h5>
+                        <p class="card-text">With supporting text below as a natural lead-in to additional content.</p>
+                        <a href="{{result}}" target="_blank" class="btn btn-primary">Go to Website</a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    document.querySelector('.searchNav').onsubmit = function(event) {
+        let queryNav = document.getElementById("searchQueryNav").value;
+        this.action = `/${queryNav}`;
+        this.submit();
+    };
+</script>
+<!-- Bootstrap JS -->
+<script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+</body>
+</html>

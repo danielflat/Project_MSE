@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <!-- Bootstrap CSS -->
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar bg-body-tertiary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <img src="/static/images/Icon.svg" alt="Logo" width="30" height="24"
+                 class="d-inline-block align-text-top">
+            Tübingo
+        </a>
+        <form class="d-flex searchNav" role="search">
+            <input id="searchQueryNav" class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
+            <button class="btn btn-outline-primary" type="submit">Search</button>
+        </form>
+    </div>
+</nav>
+
+<div class="container bg-light pb-3">
+    <form class="searchForm">
+        <div class="card">
+            <img src="{{ url_for('static', filename='images/tuebingen_image.jpg') }}" class="card-img-top"
+                 alt="A beautiful image of Tübingen">
+            <div class="card-body">
+                <div class="h3">What do you want to find about Tübingen?</div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="searchQueryForm" placeholder="Enter your search query">
+                    <button class="btn btn-primary input-group-text" type="submit">Search</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+
+<script>
+    document.querySelector('.searchNav').onsubmit = function(event) {
+        let queryNav = document.getElementById("searchQueryNav").value;
+        this.action = `/${queryNav}`;
+        this.submit();
+    };
+
+    document.querySelector('.searchForm').onsubmit = function(event) {
+        let queryForm = document.getElementById("searchQueryForm").value;
+        this.action = `/${queryForm}`;
+        this.submit();
+    };
+</script>
+<!-- Bootstrap JS -->
+<script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+</body>
+</html>
