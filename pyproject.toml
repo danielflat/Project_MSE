@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "project-mse"
+version = "0.1.0"
+description = ""
+authors = ["Flat <daniel.flat@wps.de>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+flask = "^3.0.3"
+flask-bootstrap = "^3.3.7.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
