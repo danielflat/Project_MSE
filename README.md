@@ -18,8 +18,12 @@ For **MacOS**:
 ```bash
 brew install python@3.11
 ```
-Then, install the required packages:
-```bash
-## Create Index
 
-...
+Please make sure that you have the package "poetry" installed to get all the required dependencies.
+Just run:
+```bash
+pip install poetry
+poetry install
+```
+
+# TODO Add more documentation
