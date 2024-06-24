@@ -30,6 +30,10 @@ def search_page(search_string):
 def test_page():
     return render_template("test.html")
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template("notfound.html"), 404
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
