@@ -7,6 +7,9 @@ This is the search engine *Tübingo* for the course **Modern Search Engines** in
  - Veronika Smilga
  - Lilli Diederichs
 
+## Side Notes for the Group (To be removed later)
+* jupyter notebooks are currently not tracked, due to the `.gitignore` file.
+* Please do not use jupyter notebooks since changes are not properly tracked by git.
 ## Installation guide
 This project runs with Python 3.11.0. To install the required packages, follow the instructions below:
 
@@ -47,3 +50,5 @@ python Main.py
 ```
 This command runs the `Main.py` file, which is the entry point of the project.
 # TODO Add more documentation
+
+
