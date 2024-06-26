@@ -1,4 +1,3 @@
-import T5Tokenizer, T5ForConditionalGeneration
 import spacy
 import time
 import warnings
@@ -6,7 +5,7 @@ from keybert import KeyBERT
 nlp = spacy.load("en_core_web_sm")
 kw_model = KeyBERT('distilbert-base-nli-mean-tokens')
 
-def filter_keywords(query):
+def filter_keywords_KeyBERT(query):
     '''
     This function takes a query as input and extracts keywords using spaCy and KeyBERT.
     :param query: a string query longer than 3 characters.
@@ -43,9 +42,13 @@ if __name__ == "__main__":
     text = ["I would like to go somewhere maybe Tübingen. Lets say can you drive a boat in Tübingen? Maybe on the Neckar river.",
             "SUP tübingen neckar",
             "where is townhall",
+            "wehre is towhall"
             "where is the townhall",
             "where is the townhall located"]
     for t in text:
-        filter_keywords(t)
+        start = time.time()
+        print(f"Query: {t}")
+        filter_keywords_KeyBERT(t)
         print("\n")
+        print(f'Execution time: {time.time() - start:.2f} seconds')
 
