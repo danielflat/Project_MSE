@@ -7,9 +7,6 @@ This is the search engine *Tübingo* for the course **Modern Search Engines** in
  - Veronika Smilga
  - Lilli Diederichs
 
-## Side Notes for the Group (To be removed later)
-* jupyter notebooks are currently not tracked, due to the `.gitignore` file.
-* Please do not use jupyter notebooks since changes are not properly tracked by git.
 ## Installation guide
 This project runs with Python 3.11.0. To install the required packages, follow the instructions below:
 
@@ -43,12 +40,33 @@ To activate the Poetry environment, run the following command:
 ```bash
 poetry shell
 ```
-#### Step 2: Run the project
+
+#### Step 2: Set up the database
+For our search engine we use a shared database with our index. This is required
+to run the search engine and test it. 
+For that make sure to run the following:
+```bash
+docker compose down;
+docker compose up --build db
+```
+After that you should wait some seconds until you get the message:
+
+`LOG:  database system is ready to accept connections`
+
+When you want to try out how the database works, you can experiment it with [001_Flat_db_example_connection.ipynb](exp/001_Flat_db_example_connection.ipynb)
+
+#### Step 3: Run the project
 To run the project, execute the following command:
 ```bash
 python Main.py
 ```
 This command runs the `Main.py` file, which is the entry point of the project.
+
+
+
+
 # TODO Add more documentation
+
+
 
 

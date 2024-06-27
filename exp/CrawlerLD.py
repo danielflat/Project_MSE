@@ -186,4 +186,3 @@ if __name__ == "__main__":
 
     crawler = Crawler(frontier_de, max_pages, max_steps_per_domain)
     crawler.crawl()
-
