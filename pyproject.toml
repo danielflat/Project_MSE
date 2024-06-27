@@ -17,23 +17,22 @@ lightgbm = "^4.0.0"
 scikit-learn = "^1.2.0"
 requests = "^2.32.3"
 psycopg2-binary = "^2.9.9"  # df: Is a driver for the PostgreSQL db
+keybert = "^0.8.5"
+spacy = "^3.7.5"
 
 
 [tool.poetry.group.crawl.dependencies]
 robotexclusionrulesparser = "^1.7.1"
 beautifulsoup4 = "^4.12.3"
 urllib3 = "^2.2.2"
+nltk = "^3.8.1"
 
 
 [tool.poetry.group.ranker.dependencies]
-torch = "^2.3.1"
 scikit-learn = "^1.5.0"
 joblib = "^1.1.0"
-scikit-learn = "^1.2.0"
 scipy = "^1.7.3"
 yake = "^0.4.8"
-keybert = "^0.8.5"
-spacy = "^3.7.5"
 
 [build-system]
 requires = ["poetry-core"]
