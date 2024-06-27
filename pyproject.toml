@@ -18,6 +18,11 @@ scikit-learn = "^1.2.0"
 requests = "^2.32.3"
 
 
+[tool.poetry.group.crawl.dependencies]
+robotexclusionrulesparser = "^1.7.1"
+beautifulsoup4 = "^4.12.3"
+urllib3 = "^2.2.2"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
