@@ -2,10 +2,130 @@
 	#frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
 	#index: The location of the local index storing the discovered documents.
 
-class Crawler():
-    def __init__(self):
+import threading
+import urllib.request
+from bs4 import BeautifulSoup
+import time
+import urllib.parse
+from queue import Queue
+import robotexclusionrulesparser as rerp
 
-        self.frontier_eng = [
+class Crawler:
+    def __init__(self, frontier_de, max_pages, max_steps_per_domain):
+        self.frontier_de = frontier_de
+        self.max_pages = max_pages
+        self.max_steps_per_domain = max_steps_per_domain
+        self.timeout = timeout
+        self.visited = set()
+        self.to_visit = Queue()
+        for url in frontier_de:
+            self.to_visit.put(url)
+        self.robot_parsers = {}
+        self.domain_steps = {}
+        self.visited_domains = set()
+
+    def get_robot_parser(self, url):
+        """Fetches and parses the robots.txt file for the given URL's domain."""
+        domain = urllib.parse.urlparse(url).netloc
+        if domain in self.robot_parsers:
+            return self.robot_parsers[domain]
+        
+        robots_url = urllib.parse.urljoin(f"http://{domain}", '/robots.txt')
+        try:
+            response = urllib.request.urlopen(robots_url)
+            robots_txt = response.read().decode('utf-8')
+            parser = rerp.RobotExclusionRulesParser()
+            parser.parse(robots_txt)
+            self.robot_parsers[domain] = parser
+            return parser
+        except Exception as e:
+            print(f"Failed to fetch robots.txt for {domain}: {e}")
+            return None
+
+    def is_allowed(self, url):
+        """Checks if a URL is allowed to be crawled based on robots.txt rules."""
+        parser = self.get_robot_parser(url)
+        if parser:
+            return parser.is_allowed('*', url)
+        return True
+
+    def fetch_page(self, url):
+        """Fetches the content of a URL."""
+        try:
+            response = urllib.request.urlopen(url, timeout=self.timeout)
+            return response.read()
+        except Exception as e:
+            print(f"Failed to fetch page: {e}")
+            return None
+
+    def parse_links(self, html, base_url):
+        """Parses and returns all links found in the HTML content."""
+        soup = BeautifulSoup(html, 'html.parser')
+        internal_links = []
+        external_links = []
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if '#' in href:
+                continue
+            if not href.startswith('http'):
+                href = urllib.parse.urljoin(base_url, href)
+                internal_links.append(href)
+            else:
+                external_links.append(href)
+        return internal_links, external_links
+
+
+    def is_english(self, html):
+        """Checks if the HTML content is in English."""
+        soup = BeautifulSoup(html, 'html.parser')
+        html_tag = soup.find('html')
+        if html_tag and html_tag.get('lang'):
+            return html_tag.get('lang').startswith('en')
+        return False
+    
+
+    def index_page(self, url, html):
+        """Placeholder function for indexing a page's content."""
+        print(f"Indexing {url}")
+
+    def crawl(self):
+        """Main function to start the crawling process."""
+        pages_crawled = 0
+        while not self.to_visit.empty() and pages_crawled < self.max_pages:
+            url = self.to_visit.get()
+            domain = urllib.parse.urlparse(url).netloc
+            if url in self.visited or domain in self.visited_domains or not self.is_allowed(url):
+                continue
+            
+            print(f"Crawling: {url}")
+            html = self.fetch_page(url)
+            if html and self.is_english(html):
+                self.visited.add(url)
+                self.index_page(url, html)
+                internal_links, external_links = self.parse_links(html, url)
+                
+                if domain not in self.domain_steps:
+                    self.domain_steps[domain] = 0
+
+                for link in internal_links:
+                    if self.domain_steps[domain] < self.max_steps_per_domain:
+                        self.to_visit.put(link)
+                        self.domain_steps[domain] += 1
+                    else:
+                        break
+
+                if self.domain_steps[domain] >= self.max_steps_per_domain:
+                    self.visited_domains.add(domain)
+
+                for link in external_links:
+                    if link not in self.visited and link not in self.visited_domains:
+                        self.to_visit.put(link)
+
+                pages_crawled += 1
+            time.sleep(1)
+
+if __name__ == "__main__":
+    frontier_de = [
             'https://uni-tuebingen.de/en/',
             'https://www.tuebingen.mpg.de/en',
             'https://www.tuebingen.de/en/',
@@ -59,44 +179,11 @@ class Crawler():
             'https://www.my-stuwe.de/en/refectory/refectory-shedhalle/',
             'https://www.my-stuwe.de/en/refectory/refectory-morgenstelle-tuebingen/',
             'https://www.bahnhof.de/en/tuebingen-hbf'
-            ]
-        
-        self.frontier_de = [
-            'https://rp.baden-wuerttemberg.de/rpt/',
-            'https://uni-tuebingen.de',
-            'https://www.tuebingen-info.de/de/sehenswuerdigkeiten',
-            'https://viel-unterwegs.de/reiseziele/deutschland/baden-wuerttemberg/tuebingen-sehenswuerdigkeiten/',
-            'https://www.swr.de/swraktuell/baden-wuerttemberg/tuebingen/stocherkahn-rennen-in-tuebingen-100.htm',
-            'https://www.tuebingen.de/palmer',
-            'https://www.tuebingen-info.de/de/tuebinger-flair/die-tuebinger-altstadt',
-            'https://www.unimuseum.uni-tuebingen.de/de/schloss-hohentuebingen',
-            'https://de.wikipedia.org/wiki/Schloss_Hohentübingen',
-            'https://www.tuebingen-info.de/attraktion/schloss-hohentuebingen-5180385e2e',
-            'https://www.stiftskirche-tuebingen.de',
-            'https://www.stiftskirche.de',
-            'https://hoelderlinturm.de/',
-            'https://www.tuebingen-info.de/attraktion/cotta-haus-f69a9620bd',
-            'https://uni-tuebingen.de/einrichtungen/zentrale-einrichtungen/botanischer-garten/',
-            'https://de.wikipedia.org/wiki/Neckar',
-            'https://www.iksr.org/de/themen/rhein/teileinzugsgebiete/neckar',
-            'https://www.reisetipps-europa.de/51_Reisefuehrer/7_Reisefuehrer_D_Neckar.html',
-            'https://www.tuebingen.de',
-            'https://www.rhenania-tuebingen.de/universitaetsstadt-tuebingen/',
-            'https://uni-tuebingen.de/einrichtungen/personalvertretungen-beratung-beauftragte/lageplaene/karte-b-wilhelmstrasse-talkliniken/neue-aula/',
-            'https://de.wikipedia.org/wiki/Neue_Aula_Tübingen',
-            'https://www.tuepedia.de/wiki/Neue_Aula',
-            'https://www.tuebingen-info.de/de/veranstaltungen#/event',
-            'https://www.tuebingen.de/109.html',
-            'https://www.unimuseum.uni-tuebingen.de/de/',
-            'https://freizeitmonster.de/blog/parks-tuebingen',
-            'https://uni-tuebingen.de/en/fakultaeten/philosophische-fakultaet/fachbereiche/geschichtswissenschaft/fachbereich/',
-            'https://www.my-stuwe.de/mensa/',
-            'https://www.tuepedia.de/wiki/Shedhalle',
-            'https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/',
-            'https://uni-tuebingen.de/einrichtungen/personalvertretungen-beratung-beauftragte/lageplaene/karte-a-morgenstelle/',
-            'https://de.wikipedia.org/wiki/Morgenstelle',
-            ]
+    ]
+    max_pages = 30
+    max_steps_per_domain = 5
+    timeout = 5 #seconds
 
-    def crawl(frontier, index):
-        #TODO: Implement me
-        pass
+    crawler = Crawler(frontier_de, max_pages, max_steps_per_domain)
+    crawler.crawl()
+
