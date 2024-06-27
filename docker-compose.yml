@@ -2,11 +2,35 @@ version: '3.9'
 
 services:
   db:
-    image: postgres:latest
+    build:
+      context: ./db
+#    image: postgres:latest
     environment:
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: "user_pw"
       POSTGRES_DB: "search_engine_db"
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/dump.sql:/docker-entrypoint-initdb.d/dump.sql
 
+#  db_init:
+#    build:
+#      context: ./db
+#    environment:
+#      POSTGRES_USER: "user"
+#      POSTGRES_PASSWORD: "user_pw"
+#      POSTGRES_DB: "search_engine_db"
+#    volumes:
+#      - ./db/dump.sql:/docker-entrypoint-initdb.d/dump.sql
+#    depends_on:
+#      - db
+#    networks:
+#      - db-network
+#
+volumes:
+  pgdata:
+#
+#networks:
+#  db-network:
