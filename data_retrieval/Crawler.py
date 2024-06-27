@@ -31,6 +31,7 @@ class Crawler:
         self.robot_parsers = {}
         self.domain_steps = {}
         self.visited_domains = set()
+        self.scraped_webpages_info = []
 
     def get_robot_parser(self, url):
         """Fetches and parses the robots.txt file for the given URL's domain."""
@@ -84,17 +85,20 @@ class Crawler:
 
     
     def preprocess_text(self, text):
+        # TODO hyphen is not treated the right way (e.g. we get baden and württemberg instead of baden-württemberg)
         """Lowercases, tokenizes, and removes stopwords from the page content."""
         eng_stopwords = nltk.corpus.stopwords.words('english')
         processed_text = ' '.join([i for i in nltk.word_tokenize(text.lower()) if i not in eng_stopwords])
         return processed_text
 
 
-    def get_keywords_with_KeyBERT(self, text):
+    def get_keywords_with_KeyBERT(self, text, keyphrase_ngram_range=(1, 1), top_n=100):
+        # TODO think of getting summaries instead of keywords; seems more similar to our train data
         """Extracts keywords from text using KeyBERT."""
-        keybert_keywords = kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=100)
+        keybert_keywords = kw_model.extract_keywords(text, keyphrase_ngram_range=keyphrase_ngram_range, stop_words='english', top_n=top_n)
         keybert_keywords = [kw[0] for kw in keybert_keywords]
         # Further filter keywords to focus on nouns and proper nouns
+        # TODO maybe remove this part
         filtered_keywords = [word for word in keybert_keywords if any(token.pos_ in ['NOUN', 'PROPN'] for token in nlp(word))]
         return filtered_keywords
 
@@ -135,7 +139,7 @@ class Crawler:
             title = soup.title.string
             page_text = ' '.join(soup.get_text(separator=' ').split())
             page_text = self.preprocess_text(page_text)
-            keywords = self.get_keywords_with_KeyBERT(page_text)
+            keywords = self.get_keywords_with_KeyBERT(page_text, keyphrase_ngram_range=(1, 1), top_n=100)
             headings = [heading.text.strip() for heading in soup.find_all(re.compile('^h[1-6]$'))]
             created_or_updated_timestamp = self.get_creation_or_update_timestamp(soup)
             webpage_content = {
@@ -148,7 +152,8 @@ class Crawler:
                 "accessed_timestamp": accessed_timestamp,
             }
             print(f"Indexed url {url} with title `{title}` successfully.")
-            print(webpage_content)
+            # this line is for debugging
+            # print(webpage_content)
         except Exception as e:
             print(f"Faced an error while indexing url {url}: {e}. Moving on to the next page.")
 
@@ -178,6 +183,9 @@ class Crawler:
             if html and self.is_english(html):
                 self.visited.add(url)
                 webpage_info = self.index_page(url, html)
+                if webpage_info:
+                    self.scraped_webpages_info.append(webpage_info)
+
                 internal_links, external_links = self.parse_links(html, url)
                 
                 if domain not in self.domain_steps:
@@ -199,6 +207,7 @@ class Crawler:
 
                 pages_crawled += 1
             time.sleep(1)
+        return self.scraped_webpages_info
 
 if __name__ == "__main__":
     frontier = [
@@ -261,5 +270,4 @@ if __name__ == "__main__":
     timeout = 5 #seconds
 
     crawler = Crawler(frontier, max_pages, max_steps_per_domain)
-    crawler.crawl()
-
+    scraped_webpages_info = crawler.crawl()
