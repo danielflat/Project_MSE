@@ -210,6 +210,7 @@ class Crawler:
         return self.scraped_webpages_info
 
 if __name__ == "__main__":
+    # TODO expand the frontier
     frontier = [
             'https://uni-tuebingen.de/en/',
             'https://www.tuebingen.mpg.de/en',
