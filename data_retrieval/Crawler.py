@@ -2,13 +2,21 @@
 	#frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
 	#index: The location of the local index storing the discovered documents.
 
-import threading
 import urllib.request
 from bs4 import BeautifulSoup
 import time
 import urllib.parse
 from queue import Queue
+import re
 import robotexclusionrulesparser as rerp
+import nltk
+import en_core_web_sm
+from datetime import datetime
+from keybert import KeyBERT
+
+nltk.download('stopwords')
+nlp = en_core_web_sm.load()
+kw_model = KeyBERT('distilbert-base-nli-mean-tokens')
 
 class Crawler:
     def __init__(self, frontier_de, max_pages, max_steps_per_domain):
@@ -74,6 +82,78 @@ class Crawler:
                 external_links.append(href)
         return internal_links, external_links
 
+    
+    def preprocess_text(self, text):
+        """Lowercases, tokenizes, and removes stopwords from the page content."""
+        eng_stopwords = nltk.corpus.stopwords.words('english')
+        processed_text = ' '.join([i for i in nltk.word_tokenize(text.lower()) if i not in eng_stopwords])
+        return processed_text
+
+
+    def get_keywords_with_KeyBERT(self, text):
+        """Extracts keywords from text using KeyBERT."""
+        keybert_keywords = kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 1), stop_words='english', top_n=100)
+        keybert_keywords = [kw[0] for kw in keybert_keywords]
+        # Further filter keywords to focus on nouns and proper nouns
+        filtered_keywords = [word for word in keybert_keywords if any(token.pos_ in ['NOUN', 'PROPN'] for token in nlp(word))]
+        return filtered_keywords
+
+
+    def get_creation_or_update_timestamp(self, soup):
+        """Gets the date when the page was last updated. If not present, gets the date when the page was created."""
+        date = None
+        potential_selectors = [
+            {'tag': 'time', 'attrs': {'class': 'last-updated'}},
+            {'tag': 'div', 'attrs': {'id': 'last-updated'}},
+            {'tag': 'span', 'attrs': {'class': 'update-time'}},
+        ]
+        for selector in potential_selectors:
+            last_update_tag = soup.find(selector['tag'], selector['attrs'])
+            if last_update_tag:
+                date = last_update_tag.get_text()
+
+        if not date:
+            date_meta = soup.find('meta', attrs={'name': 'date'})
+            if date_meta:
+                date = date_meta.get('content')
+
+        return date
+
+
+    def index_page(self, url, html):
+        # TODO also think about meta descriptions? might be useful; google uses them
+        """Indexes the page content, extracting url, title, headings, page_text,
+        keywords, timestamp of the page creation / last update,
+        timestamp of when the crawler accessed the page."""
+        webpage_content = {}
+        print(f"Indexing...")
+        try:
+            accessed_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            soup = BeautifulSoup(html, 'html.parser')
+            # this line is for debugging
+            # print("WEBPAGE: ", soup.prettify())
+            title = soup.title.string
+            page_text = ' '.join(soup.get_text(separator=' ').split())
+            page_text = self.preprocess_text(page_text)
+            keywords = self.get_keywords_with_KeyBERT(page_text)
+            headings = [heading.text.strip() for heading in soup.find_all(re.compile('^h[1-6]$'))]
+            created_or_updated_timestamp = self.get_creation_or_update_timestamp(soup)
+            webpage_content = {
+                "url": url,
+                "title": title,
+                "headings": headings,
+                "page_text": page_text,
+                "keywords": keywords,
+                "created_or_updated_timestamp": created_or_updated_timestamp,
+                "accessed_timestamp": accessed_timestamp,
+            }
+            print(f"Indexed url {url} with title `{title}` successfully.")
+            print(webpage_content)
+        except Exception as e:
+            print(f"Faced an error while indexing url {url}: {e}. Moving on to the next page.")
+
+        return webpage_content
+
 
     def is_english(self, html):
         """Checks if the HTML content is in English."""
@@ -82,11 +162,7 @@ class Crawler:
         if html_tag and html_tag.get('lang'):
             return html_tag.get('lang').startswith('en')
         return False
-    
 
-    def index_page(self, url, html):
-        """Placeholder function for indexing a page's content."""
-        print(f"Indexing {url}")
 
     def crawl(self):
         """Main function to start the crawling process."""
@@ -101,7 +177,7 @@ class Crawler:
             html = self.fetch_page(url)
             if html and self.is_english(html):
                 self.visited.add(url)
-                self.index_page(url, html)
+                webpage_info = self.index_page(url, html)
                 internal_links, external_links = self.parse_links(html, url)
                 
                 if domain not in self.domain_steps:
@@ -125,7 +201,7 @@ class Crawler:
             time.sleep(1)
 
 if __name__ == "__main__":
-    frontier_de = [
+    frontier = [
             'https://uni-tuebingen.de/en/',
             'https://www.tuebingen.mpg.de/en',
             'https://www.tuebingen.de/en/',
@@ -184,6 +260,6 @@ if __name__ == "__main__":
     max_steps_per_domain = 5
     timeout = 5 #seconds
 
-    crawler = Crawler(frontier_de, max_pages, max_steps_per_domain)
+    crawler = Crawler(frontier, max_pages, max_steps_per_domain)
     crawler.crawl()
 
