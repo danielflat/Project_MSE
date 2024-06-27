@@ -34,6 +34,8 @@ poetry install
 ```
 This command reads the `pyproject.toml` file and installs all specified dependencies into a virtual environment managed by Poetry.
 
+NB: when you are adding a package to a specific group, please make sure that this package is NOT specified anywhere else in the file. Duplicates cause issues that are hard to solve.
+
 ## Running the project
 #### Step 1: Activate the Poetry Environment
 To activate the Poetry environment, run the following command:
