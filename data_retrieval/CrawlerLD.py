@@ -1,32 +1,22 @@
 #Crawl the web. You need (at least) two parameters:
 	#frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
 	#index: The location of the local index storing the discovered documents.
-import urllib.request
-from bs4 import BeautifulSoup
-import re
-import time
 import threading
-import urllib.parse
-import robotexclusionrulesparser as rerp
 import urllib.request
 from bs4 import BeautifulSoup
-import re
 import time
 import urllib.parse
-import robotexclusionrulesparser as rerp
 from queue import Queue
+import robotexclusionrulesparser as rerp
 
 class Crawler:
     def __init__(self, frontier_de, max_pages):
         self.frontier_de = frontier_de 
         self.max_pages = max_pages
         self.visited = set()
-        self.to_visit = Queue()
+        self.to_visit = list(frontier_de                    )
         self.robot_parsers = {}
 
-        #Fill Queue with frontier_de
-        for url in frontier_de:
-            self.to_visit.put(url)
 
     def get_robot_parser(self, url):
         """Fetches and parses the robots.txt file for the given URL's domain."""
@@ -66,10 +56,12 @@ class Crawler:
         """Parses and returns all links found in the HTML content."""
         soup = BeautifulSoup(html, 'html.parser')
         links = []
+        internal_links = []
+        external_links = [] #maybe better to diversify quicker
         for link in soup.find_all('a', href=True):
             href = link['href']
             if not href.startswith('http'):
-                href = urllib.parse.urljoin(base_url, href)  # Convert relative URLs to absolute
+                href = urllib.parse.urljoin(base_url, href) 
             links.append(href)
         return links
 
@@ -81,26 +73,35 @@ class Crawler:
         """Main function to start the crawling process."""
         pages_crawled = 0
         while self.to_visit and pages_crawled < self.max_pages:
-            url = self.to_visit.pop(0)  # Get the next URL from the frontier
+            url = self.to_visit.pop(0) 
             if url in self.visited or not self.is_allowed(url):
                 continue
             
             print(f"Crawling: {url}")
             html = self.fetch_page(url)
             if html:
-                self.visited.add(url)  # Mark the URL as visited
-                self.index_page(url, html)  # Index the page
-                links = self.parse_links(html, url)  # Extract links from the page
+                self.visited.add(url)  
+                self.index_page(url, html) 
+                links = self.parse_links(html, url)  
                 for link in links:
                     if link not in self.visited and link not in self.to_visit:
-                        self.to_visit.append(link)  # Add new links to the frontier
+                        self.to_visit.append(link)  
                 pages_crawled += 1
-            time.sleep(1)  # Be polite and avoid hitting the server too hard
+            time.sleep(1)  
 
 if __name__ == "__main__":
     frontier_de = [
-        'https://rp.baden-wuerttemberg.de/rpt/'
+        'https://uni-tuebingen.de/en/',
+        'https://www.tuebingen.mpg.de/en',
+        'https://www.tuebingen.de/en/',
+        'https://health-nlp.com/people/carsten.html',
+        'https://www.dzne.de/en/about-us/sites/tuebingen',
+        'https://www.britannica.com/place/Tubingen-Germany',
+        'https://tuebingenresearchcampus.com/en/tuebingen/general-information/local-infos/',
+        'https://wanderlog.com/list/geoCategory/199488/where-to-eat-best-restaurants-in-tubingen',
+        'https://wikitravel.org/en/T%C3%BCbingen'
     ]
     max_pages = 100 
+
     crawler = Crawler(frontier_de, max_pages)
     crawler.crawl()
