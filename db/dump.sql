@@ -69,9 +69,6 @@ ALTER TABLE ONLY public.documents ALTER COLUMN id SET DEFAULT nextval('public.do
 --
 
 COPY public.documents (id, url, keyword, content, last_updated) FROM stdin;
-1	testurl	\N	This is a nice content page!	2024-06-27 17:42:42.731149
-2	testurl	\N	This is a nice content page!	2024-06-27 17:42:52.753219
-3	testurl	\N	This is a nice content page!	2024-06-27 17:49:44.532762
 \.
 
 
@@ -79,7 +76,7 @@ COPY public.documents (id, url, keyword, content, last_updated) FROM stdin;
 -- Name: documents_id_seq; Type: SEQUENCE SET; Schema: public; Owner: user
 --
 
-SELECT pg_catalog.setval('public.documents_id_seq', 3, true);
+SELECT pg_catalog.setval('public.documents_id_seq', 6, true);
 
 
 --

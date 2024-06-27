@@ -36,7 +36,7 @@ This command reads the `pyproject.toml` file and installs all specified dependen
 
 NB: when you are adding a package to a specific group, please make sure that this package is NOT specified anywhere else in the file. Duplicates cause issues that are hard to solve.
 
-## Running the project
+## Running the Project
 #### Step 1: Activate the Poetry Environment
 To activate the Poetry environment, run the following command:
 ```bash
@@ -65,7 +65,30 @@ python Main.py
 This command runs the `Main.py` file, which is the entry point of the project.
 
 
+## Dealing with the database 
 
+For the project we all want to be on the same page. For that we have one common database, a PostgreSQL.
+Furthermore, we all try to be in sync with our data, so for that there always exists a [dump.sql](./db/dump.sql).
+This file makes it possible to always have the latest data when calling `docker compose up --build db`.
+
+But when you are working with it, you should **update** the `dump.sql` when you make progress for the team. To do that you have to do the following steps.
+
+1. Make sure the docker container is running. For that look at the chapter "Running the Project".
+2. Look up the container ID. For that just exec:
+```bash
+docker ps
+```
+It should list all your running containers. Look for the right container. The right name of the image is `project_mse-db`.
+An ID might look like this: `c946285e9b4f`
+3. Go and overwrite the `dump.sql` by exec the following script:
+```bash
+docker exec -t your_container_name_or_id pg_dump -U user search_engine_db > ./db/dump.sql
+```
+For example with the container ID `c946285e9b4f` the command should look like this:
+```bash
+docker exec -t c946285e9b4f pg_dump -U user search_engine_db > ./db/dump.sql
+```
+4. Push the updated dump.sql using git.
 
 # TODO Add more documentation
 
