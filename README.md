@@ -34,7 +34,7 @@ poetry install
 ```
 This command reads the `pyproject.toml` file and installs all specified dependencies into a virtual environment managed by Poetry.
 
-NB: when you are adding a package to a specific group, please make sure that this package is NOT specified anywhere else in the file. Duplicates cause issues that are hard to solve.
+**Note**: When adding a package to a specific group, ensure that this package is NOT specified anywhere else in the file. Duplicates can cause issues that are hard to resolve.
 
 ## Running the Project
 #### Step 1: Activate the Poetry Environment
@@ -53,7 +53,9 @@ docker compose up --build db
 ```
 After that you should wait some seconds until you get the message:
 
-`LOG:  database system is ready to accept connections`
+```vbnet
+LOG:  database system is ready to accept connections
+```
 
 When you want to try out how the database works, you can experiment it with [001_Flat_db_example_connection.ipynb](exp/001_Flat_db_example_connection.ipynb)
 
@@ -89,8 +91,16 @@ For example with the container ID `c946285e9b4f` the command should look like th
 docker exec -t c946285e9b4f pg_dump -U user search_engine_db > ./db/dump.sql
 ```
 4. Push the updated dump.sql using git.
+```
+git add db/dump.sql
+git commit -m "Update dump.sql"
+```
 
-# TODO Add more documentation
+# TODO: Add more documentation
+
+## Create Index
+
+
 
 
 
