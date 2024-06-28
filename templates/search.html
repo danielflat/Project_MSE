@@ -31,13 +31,10 @@
         {% for result in results %}
             <div class="col">
                 <div class="card">
-                    <div class="card-header">
-                        TextTitle
-                    </div>
                     <div class="card-body">
-                    <h5 class="card-title">Special title treatment</h5>
-                        <p class="card-text">With supporting text below as a natural lead-in to additional content.</p>
-                        <a href="{{result}}" target="_blank" class="btn btn-primary">Go to Website</a>
+                        <h5 class="card-title">Document</h5>
+                        <p class="card-text">{{ result.text }}</p>
+                        <p class="card-text"><small class="text-muted">Score: {{ result.score }}</small></p>
                     </div>
                 </div>
             </div>
@@ -47,9 +44,14 @@
 
 <script>
     document.querySelector('.searchNav').onsubmit = function(event) {
-        let queryNav = document.getElementById("searchQueryNav").value;
-        this.action = `/${queryNav}`;
-        this.submit();
+        let queryNav = document.getElementById("searchQueryNav").value.trim();
+        if (!queryNav) {
+            alert("Please enter a search query.");
+            event.preventDefault();
+        } else {
+            this.action = `/search?q=${encodeURIComponent(queryNav)}`;
+            this.submit();
+        }
     };
 </script>
 <!-- Bootstrap JS -->

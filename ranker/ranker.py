@@ -1,3 +1,5 @@
+#author: @lenardrommel
+
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding, PreTrainedTokenizerFast
 from transformers.modeling_outputs import SequenceClassifierOutput
@@ -25,6 +27,10 @@ class Ranker:
                 outputs: SequenceClassifierOutput = self.model(**batch_dict, return_dict=True)
                 score = outputs.logits[0].item()
                 scores.append(score)
+
+            # normalize scores
+            scores = [(score - min(scores)) / (max(scores) - min(scores)) for score in scores]
+
 
         ranked_docs = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
         return [doc for doc, score in ranked_docs], scores
