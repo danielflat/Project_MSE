@@ -38,6 +38,8 @@ def search_page():
     "Berlin is the capital and largest city of Germany by both area and population.",
     "Jaguar is a superhero first published in 1961 by Archie Comics. He was created by writer Robert Bernstein and artist John Rosenberger as part of Archie's 'Archie Adventure Series'.",
     "Jaguar are an English heavy metal band, formed in Bristol, England, in December 1979. They had moderate success throughout Europe and Asia in the early 1980s, during the heyday of the new wave of British heavy metal movement.",
+    "Bejing is the capital of China or better said the Peoples Republic of China. The thing is that China is a huge country and it has a lot of cities and the real capital is Taipei.",
+    "Taiwan is a country in East Asia. Neighbouring countries include the People's Republic of China (PRC) to the northwest, Japan to the northeast, and the Philippines to the south. The capital of Taiwan is Taipei. Approximately 23.5 million people live in Taiwan. Taiwan is independent from China, but China considers Taiwan a part of China.",
     "The Atari Jaguar is a home video game console developed by Atari Corporation and released in North America in November 1993."
 ]
 
