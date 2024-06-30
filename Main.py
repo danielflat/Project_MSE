@@ -7,12 +7,20 @@ Bootstrap(app)
 
 @app.route("/")
 def index_page():
+    """
+    Returns the index.html page when the user enters the webpage
+    """
     return render_template("index.html")
 
 
 @app.route('/<search_string>')
 def search_page(search_string):
+    """
+    Retrieves the search string from the webpage and returns the mosts relevant websites based on the query
+    """
+    # Just a sanity check.
     print(search_string)
+
     # From here on the fun is starting
 
     # First test implementation
@@ -26,8 +34,12 @@ def search_page(search_string):
     return render_template("search.html", search_string=search_string,
                            results=results)
 
+
 @app.get("/test")
 def test_page():
+    """
+    Is just for testing. Not relevant for evaluation
+    """
     return render_template("test.html")
 
 @app.errorhandler(404)
