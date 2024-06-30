@@ -1,4 +1,4 @@
-# Project for Modern Search Engines
+# MSE Project - Tübingo
 This is the search engine *Tübingo* for the course **Modern Search Engines** in the summer term 2024.
 
 ## By Group 09:
@@ -27,7 +27,8 @@ pip install poetry
 poetry install
 ```
 
-### Project Dependencies
+### Dependencies
+#### Poetry
 To install the project dependencies, run the following command:
 ```bash
 poetry install
@@ -35,6 +36,21 @@ poetry install
 This command reads the `pyproject.toml` file and installs all specified dependencies into a virtual environment managed by Poetry.
 
 **Note**: When adding a package to a specific group, ensure that this package is NOT specified anywhere else in the file. Duplicates can cause issues that are hard to resolve.
+
+##### Data index
+For the collaborators and the reviewers make sure that git lfs (git Large File Storage) is installed on your machine.
+Look [here](https://docs.github.com/en/repositories/working-with-files/managing-large-files/installing-git-large-file-storage) for more details.
+
+For **MacOS**:
+```bash
+brew install git-lfs
+```
+With that we are tracking the [dump.sql](/db/dump.sql) (the index for our search engine) because it might be too large for a repo. 
+We used
+```bash
+git lfs track ./data/dump.sql
+```
+to still be able to push this file.
 
 ## Running the Project
 #### Step 1: Activate the Poetry Environment
