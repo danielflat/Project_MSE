@@ -91,7 +91,7 @@ class DocumentRepository:
         Updates a document of the database
         """
         values = [str(document.id), document.url, document.title, document.headings, document.page_text, document.keywords,
-                document.created_or_updated_timestamp,
+                document.accessed_timestamp,
                 document.internal_links, document.external_links, document.url]
 
         self.cursor.execute(self.updateQuery, values)
@@ -125,8 +125,3 @@ class DocumentRepository:
         self.cursor.execute(self.deleteAllQuery)
         self.connection.commit()
         print("SC: Deleted all documents.")
-
-if __name__ == "__main__":
-    repository = DocumentRepository()
-    repository.saveAllDocuments([DocumentEntry("url1", "Title 1", ["heading1"], "page text 1",
-                       ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7"], datetime.now(), [], ["myfirstevencoolerexternallink1", "myfirstevencoolerexternallink2"])])

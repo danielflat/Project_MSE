@@ -26,12 +26,14 @@ class DocumentEntry(object):
         self.external_links = external_links
 
     def __str__(self):
-        return str(self.id), self.url, self.title, self.headings, self.page_text, self.keywords, self.accessed_timestamp, self.internal_links, self.external_links
+        return str(
+            self.id), self.url, self.title, self.headings, self.page_text, self.keywords, self.accessed_timestamp, self.internal_links, self.external_links
+
     def __repr__(self):
         """
         Represents the object as a short string
         """
-        id_display = self.id[:10] + '...' if len(self.id) > 10 else self.id
+        id_display = str(self.id)[:10] + '...' if len(str(self.id)) > 10 else str(self.id)
         keywords_display = "['" + self.keywords[0].__str__() + "', '" + self.keywords[1] + "', ...]" if len(
             self.keywords) > 2 else str(self.keywords)
         text_display = self.page_text[:10] + '...' if len(self.page_text) > 10 else self.page_text
@@ -43,19 +45,19 @@ class DocumentEntry(object):
                 f"page_text={text_display}, "
                 f"keywords={keywords_display}, "
                 f"accessed_timestamp={self.accessed_timestamp}], "
-                f"internal_links={self.internal_links}]",
+                f"internal_links={self.internal_links}], "
                 f"external_links={self.external_links}]")
 
     def fullString(self):
         """
         Returns the full string representation of the object. WARNING: This can be HUGE
         """
-        return (f"DocumentEntry[id={self.id}, "
+        return (f"DocumentEntry[id={str(self.id)}, "
                 f"url={self.url}, "
                 f"title={self.title}, "
                 f"headings={self.headings}, "
                 f"page_text={self.page_text}, "
                 f"keywords={self.keywords}, "
                 f"accessed_timestamp={self.accessed_timestamp}], "
-                f"internal_links={self.internal_links}]",
+                f"internal_links={self.internal_links}], "
                 f"external_links={self.external_links}]")
