@@ -1,3 +1,5 @@
+# df: Not used yet for the project. Is just here as a template for the future maybe
+
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
