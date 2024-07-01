@@ -34,6 +34,7 @@ joblib = "^1.1.0"
 scipy = "^1.7.3"
 datasets = "^1.14.0"
 yake = "^0.4.8"
+accelerate = "^0.4.0"
 
 [build-system]
 requires = ["poetry-core"]
