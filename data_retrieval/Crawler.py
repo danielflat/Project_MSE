@@ -76,7 +76,12 @@ class Crawler:
             href = link['href']
             if '#' in href:
                 continue
+            # to find relative links, e.g. /menu
             if not href.startswith('http'):
+                # filtering out stuff like that is also located in <a>
+                if "/" not in href:
+                    print(f"Filtered out invalid internal link: {href}")
+                    continue
                 href = urllib.parse.urljoin(base_url, href)
                 internal_links.append(href)
             else:
@@ -103,6 +108,7 @@ class Crawler:
         return filtered_keywords
 
 
+    # NOT USED NOW, INFO NOT PRESENT IN MOST PAGES
     def get_creation_or_update_timestamp(self, soup):
         """Gets the date when the page was last updated. If not present, gets the date when the page was created."""
         date = None
@@ -132,7 +138,7 @@ class Crawler:
         webpage_content = {}
         print(f"Indexing...")
         try:
-            accessed_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            accessed_timestamp = datetime.now()
             soup = BeautifulSoup(html, 'html.parser')
             # this line is for debugging
             # print("WEBPAGE: ", soup.prettify())
@@ -141,14 +147,14 @@ class Crawler:
             page_text = self.preprocess_text(page_text)
             keywords = self.get_keywords_with_KeyBERT(page_text, keyphrase_ngram_range=(1, 1), top_n=100)
             headings = [heading.text.strip() for heading in soup.find_all(re.compile('^h[1-6]$'))]
-            created_or_updated_timestamp = self.get_creation_or_update_timestamp(soup)
+            # created_or_updated_timestamp = self.get_creation_or_update_timestamp(soup)
             webpage_content = {
                 "url": url,
                 "title": title,
                 "headings": headings,
                 "page_text": page_text,
                 "keywords": keywords,
-                "created_or_updated_timestamp": created_or_updated_timestamp,
+                # "created_or_updated_timestamp": created_or_updated_timestamp,
                 "accessed_timestamp": accessed_timestamp,
             }
             print(f"Indexed url {url} with title `{title}` successfully.")
@@ -183,10 +189,11 @@ class Crawler:
             if html and self.is_english(html):
                 self.visited.add(url)
                 webpage_info = self.index_page(url, html)
-                if webpage_info:
-                    self.scraped_webpages_info.append(webpage_info)
-
                 internal_links, external_links = self.parse_links(html, url)
+                if webpage_info:
+                    webpage_info["internal_links"] = internal_links
+                    webpage_info["external_links"] = external_links
+                    self.scraped_webpages_info.append(webpage_info)
                 
                 if domain not in self.domain_steps:
                     self.domain_steps[domain] = 0
