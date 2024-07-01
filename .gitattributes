@@ -1,1 +1,2 @@
 data/dump.sql filter=lfs diff=lfs merge=lfs -text
+ranker/local_model filter=lfs diff=lfs merge=lfs -text
