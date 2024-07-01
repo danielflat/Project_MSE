@@ -1,4 +1,5 @@
 import psycopg2
+from datetime import datetime, timedelta
 
 from db.DocumentEntry import DocumentEntry
 from psycopg2.extras import execute_values
@@ -28,18 +29,24 @@ class DocumentRepository:
 
         # We save every query expression, so we have a good overview which operations we do with the database
         self.insertQuery: str = """
-                                INSERT INTO documents (id, url, keywords, content, last_updated) VALUES (%s, %s, %s, %s, %s) 
+                                INSERT INTO documents (id, url, title, headings, page_text, keywords,
+                                 accessed_timestamp, internal_links, external_links) VALUES 
+                                 (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
                                 """
         self.insertAllQuery: str = """
-                        INSERT INTO documents (id, url, keywords, content, last_updated) VALUES %s 
+                        INSERT INTO documents (id, url, title, headings, page_text, keywords, accessed_timestamp, internal_links, external_links) VALUES %s 
                         """
         self.updateQuery = """
                 UPDATE documents
                 SET id = %s,
                     url = %s,
+                    title = %s,
+                    headings = %s,
+                    page_text = %s,
                     keywords = %s,
-                    content = %s,
-                    last_updated = %s
+                    accessed_timestamp = %s,
+                    internal_links = %s,
+                    external_links = %s
                 WHERE url = %s;
                 """
 
@@ -57,9 +64,14 @@ class DocumentRepository:
         rows = self.cursor.fetchall()
 
         # Convert rows to list of TestClass objects
-        result_list: list[DocumentEntry] = [DocumentEntry(url=row[1], keywords=row[2],
-                                                          content=row[3],
-                                                          last_updated=row[4],
+        result_list: list[DocumentEntry] = [DocumentEntry(url=row[1],
+                                                          title=row[2],
+                                                          headings=row[3],
+                                                          page_text=row[4],
+                                                          keywords=row[5],
+                                                          accessed_timestamp=row[6],
+                                                          internal_links=row[7],
+                                                          external_links=row[8],
                                                           id=row[0]) for row in rows]
 
         return result_list
@@ -78,7 +90,9 @@ class DocumentRepository:
         """
         Updates a document of the database
         """
-        values = [str(document.id), document.url, document.keywords, document.content, document.last_updated, document.url]
+        values = [str(document.id), document.url, document.title, document.headings, document.page_text, document.keywords,
+                document.created_or_updated_timestamp,
+                document.internal_links, document.external_links, document.url]
 
         self.cursor.execute(self.updateQuery, values)
         self.connection.commit()
@@ -111,3 +125,8 @@ class DocumentRepository:
         self.cursor.execute(self.deleteAllQuery)
         self.connection.commit()
         print("SC: Deleted all documents.")
+
+if __name__ == "__main__":
+    repository = DocumentRepository()
+    repository.saveAllDocuments([DocumentEntry("url1", "Title 1", ["heading1"], "page text 1",
+                       ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7"], datetime.now(), [], ["myfirstevencoolerexternallink1", "myfirstevencoolerexternallink2"])])
