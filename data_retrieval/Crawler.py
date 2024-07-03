@@ -2,6 +2,7 @@
 	#frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
 	#index: The location of the local index storing the discovered documents.
 
+import json
 import urllib.request
 from bs4 import BeautifulSoup
 import time
@@ -31,7 +32,8 @@ class Crawler:
         self.robot_parsers = {}
         self.domain_steps = {}
         self.visited_domains = set()
-        self.scraped_webpages_info = []
+        # uncomment if we want to get rid of iterable logic
+        # self.scraped_webpages_info = []
 
     def get_robot_parser(self, url):
         """Fetches and parses the robots.txt file for the given URL's domain."""
@@ -41,7 +43,7 @@ class Crawler:
         
         robots_url = urllib.parse.urljoin(f"http://{domain}", '/robots.txt')
         try:
-            response = urllib.request.urlopen(robots_url)
+            response = urllib.request.urlopen(robots_url, timeout=self.timeout)
             robots_txt = response.read().decode('utf-8')
             parser = rerp.RobotExclusionRulesParser()
             parser.parse(robots_txt)
@@ -144,8 +146,8 @@ class Crawler:
             # print("WEBPAGE: ", soup.prettify())
             title = soup.title.string
             page_text = ' '.join(soup.get_text(separator=' ').split())
-            page_text = self.preprocess_text(page_text)
-            keywords = self.get_keywords_with_KeyBERT(page_text, keyphrase_ngram_range=(1, 1), top_n=100)
+            processed_page_text = self.preprocess_text(page_text)
+            keywords = self.get_keywords_with_KeyBERT(processed_page_text, keyphrase_ngram_range=(1, 1), top_n=100)
             headings = [heading.text.strip() for heading in soup.find_all(re.compile('^h[1-6]$'))]
             # created_or_updated_timestamp = self.get_creation_or_update_timestamp(soup)
             webpage_content = {
@@ -175,7 +177,7 @@ class Crawler:
         return False
 
 
-    def crawl(self):
+    def __iter__(self):
         """Main function to start the crawling process."""
         pages_crawled = 0
         while not self.to_visit.empty() and pages_crawled < self.max_pages:
@@ -194,7 +196,9 @@ class Crawler:
                 if webpage_info:
                     webpage_info["internal_links"] = internal_links
                     webpage_info["external_links"] = external_links
-                    self.scraped_webpages_info.append(webpage_info)
+                    # uncomment if we want to get rid of iterable logic
+                    # self.scraped_webpages_info.append(webpage_info)
+                    yield webpage_info
                 
                 if domain not in self.domain_steps:
                     self.domain_steps[domain] = 0
@@ -215,68 +219,19 @@ class Crawler:
 
                 pages_crawled += 1
             time.sleep(1)
-        return self.scraped_webpages_info
+        # uncomment if we want to get rid of iterable logic
+        # return self.scraped_webpages_info
+
 
 if __name__ == "__main__":
     # TODO expand the frontier
-    frontier = [
-            'https://uni-tuebingen.de/en/',
-            'https://www.tuebingen.mpg.de/en',
-            'https://www.tuebingen.de/en/',
-            'https://health-nlp.com/people/carsten.html',
-            'https://www.dzne.de/en/about-us/sites/tuebingen',
-            'https://www.britannica.com/place/Tubingen-Germany',
-            'https://tuebingenresearchcampus.com/en/tuebingen/general-information/local-infos/',
-            'https://wanderlog.com/list/geoCategory/199488/where-to-eat-best-restaurants-in-tubingen',
-            'https://wikitravel.org/en/T%C3%BCbingen',
-            'https://velvetescape.com/things-to-do-in-tubingen/',
-            'https://thespicyjourney.com/magical-things-to-do-in-tubingen-in-one-day-tuebingen-germany-travel-guide/',
-            'https://www.outdooractive.com/en/places-to-eat-drink/tuebingen/eat-drink-in-tuebingen/21873363',
-            'https://www.komoot.com/guide/210692/attractions-around-tuebingen',
-            'https://bestplacesnthings.com/places-to-visit-tubingen-baden-wurttemberg-germany/',
-            'https://www.citypopulation.de/en/germany/badenwurttemberg/t%C3%BCbingen/08416041__t%C3%BCbingen/',
-            'https://www.braugasthoefe.de/en/guesthouses/gasthausbrauerei-neckarmueller/',
-            'https://www.germany.travel/en/cities-culture/tuebingen.html',
-            'https://www.tripadvisor.com/Tourism-g198539-Tubingen_Baden_Wurttemberg-Vacations.html',
-            'https://www.hih-tuebingen.de/en/?no_cache=1',
-            'https://tuebingenresearchcampus.com/',
-            'https://cyber-valley.de/en',
-            'https://www.bccn-tuebingen.de/',
-            'https://www.tripadvisor.de/Attractions-g198539-Activities-Tubingen_Baden_Wurttemberg.html',
-            'https://justinpluslauren.com/things-to-do-in-tubingen-germany/',
-            'https://www.medizin.uni-tuebingen.de/en-de/das-klinikum',
-            'https://www.medizin.uni-tuebingen.de/en-de/startseite',
-            'https://bookinghealth.com/university-hospital-tuebingen',
-            'https://www.eventbrite.de/d/germany--tübingen/parties/',
-            'https://www.tripadvisor.de/Restaurants-g198539-c11-Tubingen_Baden_Wurttemberg.html',
-            'https://www.11880.com/suche/china-restaurant/tuebingen',
-            'https://de.restaurantguru.com/chinese-Tubingen-c20',
-            'https://en.wikipedia.org/wiki/Neckar',
-            'https://www.iksr.org/en/topics/rhine/sub-basins/neckar',
-            'https://www.eventbrite.com/d/germany--tübingen/events/',
-            'https://www.tripadvisor.com/Attractions-g198539-Activities-c49-Tubingen_Baden_Wurttemberg.html',
-            'https://www.tripadvisor.com/Attractions-g198539-Activities-c57-Tubingen_Baden_Wurttemberg.html',
-            'https://www.tuebingen.de/en/3328.html',
-            'https://en.wikipedia.org/wiki/Tübingen',
-            'https://www.accuweather.com/en/de/tübingen/72070/weather-forecast/167215',
-            'https://www.timeanddate.com/weather/germany/tuebingen/ext',
-            'https://www.tripadvisor.com/Attractions-g198539-Activities-c20-Tubingen_Baden_Wurttemberg.html',
-            'https://www.yelp.com/search?cflt=bookstores&find_loc=Tübingen%2C+Baden-Württemberg',
-            'https://allevents.in/tubingen',
-            'https://globaltravelescapades.com/things-to-do-in-tubingen-germany/',
-            'https://www.tripadvisor.com/Restaurants-g198539-Tubingen_Baden_Wurttemberg.html',
-            'https://guide.michelin.com/en/de/baden-wurttemberg/tbingen/restaurants',
-            'https://www.thefork.com/restaurants/tubingen-c561333',
-            'https://www.medizin.uni-tuebingen.de/en-de/das-klinikum/einrichtungen/kliniken/zahn-mund-und-kieferheilkunde',
-            'https://www.tripadvisor.com/Attractions-g198539-Activities-c61-Tubingen_Baden_Wurttemberg.html',
-            'https://www.my-stuwe.de/en/refectory/',
-            'https://www.my-stuwe.de/en/refectory/refectory-shedhalle/',
-            'https://www.my-stuwe.de/en/refectory/refectory-morgenstelle-tuebingen/',
-            'https://www.bahnhof.de/en/tuebingen-hbf'
-    ]
+    with open("../frontier.json", "r") as file:
+        frontier = json.load(file)
     max_pages = 30
     max_steps_per_domain = 5
     timeout = 5 #seconds
+    scraped_webpages_info = []
 
     crawler = Crawler(frontier, max_pages, max_steps_per_domain, timeout)
-    scraped_webpages_info = crawler.crawl()
+    for webpage_info in crawler:
+        scraped_webpages_info = scraped_webpages_info.append(webpage_info)
