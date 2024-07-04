@@ -18,27 +18,24 @@
                  class="d-inline-block align-text-top">
             Tübingo
         </a>
-        <form class="d-flex searchNav" role="search">
+        <form class="d-flex searchNav" role="search" action="/search" method="get">
             <input id="searchQueryNav" class="form-control me-2" type="search" placeholder="Search" aria-label="Search"
-                   value="{{ search_string }}">
+                   name="q" value="">
             <button class="btn btn-outline-primary" type="submit">Search</button>
         </form>
     </div>
 </nav>
 
 <div class="container bg-light pb-3">
-    <div class="row row-cols-2 row-gap-3">
-        {% for result in results %}
-            <div class="col">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Document</h5>
-                        <p class="card-text">{{ result.text }}</p>
-                        <p class="card-text"><small class="text-muted">Score: {{ result.score }}</small></p>
-                    </div>
+    <div class="row row-cols-1 row-gap-3">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Full Document</h5>
+                    <p class="card-text">{{ document }}</p>
                 </div>
             </div>
-        {% endfor %}
+        </div>
     </div>
 </div>
 
@@ -50,6 +47,7 @@
             event.preventDefault();
         } else {
             this.action = `/search?q=${encodeURIComponent(queryNav)}`;
+            this.submit();
         }
     };
 </script>
