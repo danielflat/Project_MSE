@@ -31,10 +31,14 @@
         {% for result in results %}
             <div class="col">
                 <div class="card">
+                    <div class="card-header">
+                        {{result.title}}
+                    </div>
                     <div class="card-body">
-                        <h5 class="card-title">Document</h5>
-                        <p class="card-text">{{ result.text }}</p>
-                        <p class="card-text"><small class="text-muted">Score: {{ result.score }}</small></p>
+<!--                    <h5 class="card-title">Special title treatment</h5>-->
+                        <!-- At least some content for now. We should not present a score to the user. Let's exchange it with something else -->
+                        <p class="card-text">Score: {{result.score}}</p>
+                        <a href="{{result.url}}" target="_blank" class="btn btn-primary">Go to Website</a>
                     </div>
                 </div>
             </div>
