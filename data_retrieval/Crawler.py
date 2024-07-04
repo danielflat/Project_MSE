@@ -19,7 +19,7 @@ nlp = en_core_web_sm.load()
 kw_model = KeyBERT('distilbert-base-nli-mean-tokens')
 
 class Crawler:
-    def __init__(self, frontier_de, max_pages, max_steps_per_domain):
+    def __init__(self, frontier_de, max_pages, max_steps_per_domain, timeout):
         self.frontier_de = frontier_de
         self.max_pages = max_pages
         self.max_steps_per_domain = max_steps_per_domain
@@ -179,6 +179,7 @@ class Crawler:
         """Main function to start the crawling process."""
         pages_crawled = 0
         while not self.to_visit.empty() and pages_crawled < self.max_pages:
+            print(f"Pages crawled: {pages_crawled}. Pages left: {self.max_pages - pages_crawled}.")
             url = self.to_visit.get()
             domain = urllib.parse.urlparse(url).netloc
             if url in self.visited or domain in self.visited_domains or not self.is_allowed(url):
@@ -277,5 +278,5 @@ if __name__ == "__main__":
     max_steps_per_domain = 5
     timeout = 5 #seconds
 
-    crawler = Crawler(frontier, max_pages, max_steps_per_domain)
+    crawler = Crawler(frontier, max_pages, max_steps_per_domain, timeout)
     scraped_webpages_info = crawler.crawl()
