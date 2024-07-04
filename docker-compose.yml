@@ -1,3 +1,14 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:09ebdec534422d4bdf246dd73341683854df19175bafc1a7de985f556984f6ae
-size 283
+version: '3.9'
+
+services:
+  db:
+    build:
+      context: ./db
+    environment:
+      POSTGRES_USER: "user"
+      POSTGRES_PASSWORD: "user_pw"
+      POSTGRES_DB: "search_engine_db"
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/dump.sql:/docker-entrypoint-initdb.d/dump.sql
