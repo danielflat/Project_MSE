@@ -21,22 +21,28 @@ kw_model = KeyBERT("distilbert-base-nli-mean-tokens")
 
 
 class Crawler:
-    def __init__(self, frontier, max_pages, max_steps_per_domain, timeout):
+    def __init__(
+        self,
+        frontier,
+        max_pages,
+        max_steps_per_domain,
+        timeout,
+        visited=set(),
+        to_visit=Queue(),
+        to_visit_prioritised=Queue(),
+        visited_domains=set(),
+    ):
         self.frontier = frontier
         self.n_crawled_pages = 0
         self.max_pages = max_pages
         self.max_steps_per_domain = max_steps_per_domain
         self.timeout = timeout
-        self.visited = set()
-        self.to_visit = Queue()
-        self.to_visit_prioritised = Queue()
-        for url in frontier["tuebingen_focused_pages"]:
-            self.to_visit_prioritised.put(url)
-        for url in frontier["general_pages"]:
-            self.to_visit.put(url)
+        self.visited = visited
+        self.to_visit = to_visit
+        self.to_visit_prioritised = to_visit_prioritised
         self.robot_parsers = {}
         self.domain_steps = {}
-        self.visited_domains = set()
+        self.visited_domains = visited_domains
         # uncomment if we want to get rid of iterable logic
         # self.scraped_webpages_info = []
 
@@ -182,7 +188,7 @@ class Crawler:
         if html_tag and html_tag.get("lang"):
             return html_tag.get("lang").startswith("en")
         return False
-    
+
     def crawl_and_index_prioritised_link(self):
         print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")
         url = self.to_visit_prioritised.get()
@@ -210,10 +216,10 @@ class Crawler:
 
             for link in external_links:
                 if link not in self.visited and link not in self.visited_domains:
-                    # for unknown links, assume that they are not Tuebingen-focused 
+                    # for unknown links, assume that they are not Tuebingen-focused
                     # and put them to general (not prioritised) queue
                     self.to_visit.put(link)
-            
+
             if webpage_info:
                 webpage_info["internal_links"] = internal_links
                 webpage_info["external_links"] = external_links
@@ -222,7 +228,6 @@ class Crawler:
             time.sleep(1)
         return webpage_info
 
-    
     def crawl_and_index_general_link(self):
         print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")
         url = self.to_visit.get()
@@ -264,15 +269,27 @@ class Crawler:
             time.sleep(1)
         return webpage_info
 
-
     def __iter__(self):
         """Main function to start the crawling process."""
+
+        if self.visited:
+            print(f"""Continue crawling from a checkpoint. to_visit_prioritised len: \
+{len(list(self.to_visit_prioritised.queue))}, to_visit len: {len(list(self.to_visit.queue))}, \
+visited len: {len(self.visited)}, visited_domains len: {len(self.visited_domains)} \
+For specific values please refer to the backup json file.""")
+        else:
+            print("Start crawling from the very beginning. Good luck!")
+
+        for url in self.frontier["tuebingen_focused_pages"]:
+            self.to_visit_prioritised.put(url)
+        for url in self.frontier["general_pages"]:
+            self.to_visit.put(url)
 
         # crawl Tuebingen-focused websites and their internal links first
         while not self.to_visit_prioritised.empty() and self.n_crawled_pages < self.max_pages:
             webpage_info = self.crawl_and_index_prioritised_link()
             if webpage_info:
-                yield webpage_info
+                yield webpage_info, self.to_visit_prioritised, self.to_visit, self.visited_domains, self.visited
 
         if self.to_visit_prioritised.empty():
             print("Finished crawling prioritised sites and their children.")
@@ -281,7 +298,7 @@ class Crawler:
         while not self.to_visit.empty() and self.n_crawled_pages < self.max_pages:
             webpage_info = self.crawl_and_index_general_link()
             if webpage_info:
-                yield webpage_info
+                yield webpage_info, self.to_visit_prioritised, self.to_visit, self.visited_domains, self.visited
 
         if self.to_visit.empty():
             print("Finished crawling all sites; queue is empty.")
@@ -289,7 +306,6 @@ class Crawler:
             print("Reached the maximum number of pages to crawl.")
         else:
             print("Something went wrong. Please double-check your code.")
-        
 
 
 if __name__ == "__main__":
