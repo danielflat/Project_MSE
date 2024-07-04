@@ -43,26 +43,16 @@
 
 
 <script>
-    document.querySelector('.searchNav').onsubmit = function (event) {
-        let queryNav = document.getElementById("searchQueryNav").value.trim();
-        if (!queryNav) {
-            alert("Please enter a search query.");
-            event.preventDefault();
-        } else {
-            this.action = `/search?q=${encodeURIComponent(queryNav)}`;
-            this.submit();
-        }
+    document.querySelector('.searchNav').onsubmit = function(event) {
+        let queryNav = document.getElementById("searchQueryNav").value;
+        this.action = `/${queryNav}`;
+        this.submit();
     };
 
-    document.querySelector('.searchForm').onsubmit = function (event) {
-        let queryForm = document.getElementById("searchQueryForm").value.trim();
-        if (!queryForm) {
-            alert("Please enter a search query.");
-            event.preventDefault();
-        } else {
-            this.action = `/search?q=${encodeURIComponent(queryForm)}`;
-            this.submit();
-        }
+    document.querySelector('.searchForm').onsubmit = function(event) {
+        let queryForm = document.getElementById("searchQueryForm").value;
+        this.action = `/${queryForm}`;
+        this.submit();
     };
 </script>
 <!-- Bootstrap JS -->

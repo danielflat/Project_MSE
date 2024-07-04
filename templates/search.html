@@ -44,13 +44,9 @@
 
 <script>
     document.querySelector('.searchNav').onsubmit = function(event) {
-        let queryNav = document.getElementById("searchQueryNav").value.trim();
-        if (!queryNav) {
-            alert("Please enter a search query.");
-            event.preventDefault();
-        } else {
-            this.action = `/search?q=${encodeURIComponent(queryNav)}`;
-        }
+        let queryNav = document.getElementById("searchQueryNav").value;
+        this.action = `/${queryNav}`;
+        this.submit();
     };
 </script>
 <!-- Bootstrap JS -->

@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request
 from flask_bootstrap import Bootstrap
-from ranker.ranker import Ranker
+from ranker.ranker import BM25Okapi
 import os
+import pandas as pd
 
 
 app = Flask(__name__)
@@ -25,34 +26,31 @@ print(f"Model path exists: {os.path.exists(model_path)}")
 print(f"Tokenizer path exists: {os.path.exists(tokenizer_path)}")
 
 # Example documents - in practice, fetch documents based on the search query
-documents = open('dummyindex.csv').read().splitlines()
+documents = pd.read_csv('dummyindex.csv', delimiter=',')
+
+corpus = documents['text'].tolist()
+
+tokenized_corpus = [doc.split() for doc in documents]
+
+ranker = BM25Okapi(tokenized_corpus)
+
+
 
 
 # Initialize Ranker with absolute paths
-ranker = Ranker(model_path=model_path, tokenizer_path=tokenizer_path, device='cpu')
 
 
 @app.route("/")
 def index_page():
     return render_template("index.html")
 
-@app.route('/search')
-def search_page():
-    search_string = request.args.get('q', '')
+@app.route('/<search_string>')
+def search_page(search_string):
     print(search_string)
 
     # Rank documents based on the search string
-    ranked_documents, scores = ranker.rank_documents(search_string, documents)
+    results = ranker.get_top_n(search_string, tokenized_corpus, n=5)
 
-    results = [{"text": doc, "score": score} for doc, score in zip(ranked_documents, scores)]
-
-    # Only return search results with good scores
-    # results = [result for result in results if result['score'] > 0.2]
-    print(results)
-
-    if len(results) == 0:
-        results = [{"text": "No results found", "score": 0}]
-        page_not_found(404)
 
     return render_template("search.html", search_string=search_string, results=results)
 
