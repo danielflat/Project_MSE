@@ -1,19 +1,3 @@
-# df: Not used yet for the project. Is just here as a template for the future maybe
-
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
-
-# Set the working directory in the container
-WORKDIR /app
-
-# Copy the current directory contents into the container at /app
-COPY . /app
-
-# Install any needed packages specified in requirements.txt
-#RUN pip install --no-cache-dir Flask
-
-# Make port 5001 available to the world outside this container
-EXPOSE 5001
-
-# Run app.py when the container launches
-CMD ["python", "app.py"]
+version https://git-lfs.github.com/spec/v1
+oid sha256:0d8a29d6a24120a11a6f36ecb6701cf2d736e48f659fb823bace33fa95a7b6f5
+size 537
