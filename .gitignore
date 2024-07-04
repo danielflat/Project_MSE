@@ -3,3 +3,4 @@ poetry.lock
 ranker/local_model/*
 bfg.jar
 ranker/Miniforge3-MacOSX-arm64.sh
+__pycache__/
