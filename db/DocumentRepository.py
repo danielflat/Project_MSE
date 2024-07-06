@@ -25,7 +25,7 @@ class DocumentRepository:
             # for sanity check (SC)
             print("SC: Connected to the db. Now you can go and build the best search engine around!")
         except (Exception, psycopg2.Error) as error:
-            print("SC: Connecting to PostgreSQL did not work. Fix it", error)
+            print("SC: Connecting to PostgreSQL did not work. Maybe try to run it again.", error)
 
         # We save every query expression, so we have a good overview which operations we do with the database
         self.insertQuery: str = """

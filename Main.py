@@ -34,12 +34,6 @@ tokenized_corpus = [doc.split() for doc in documents]
 
 ranker = BM25Okapi(tokenized_corpus)
 
-
-
-
-# Initialize Ranker with absolute paths
-
-
 @app.route("/")
 def index_page():
     return render_template("index.html")
@@ -50,7 +44,6 @@ def search_page(search_string):
 
     # Rank documents based on the search string
     results = ranker.get_top_n(search_string, tokenized_corpus, n=5)
-
 
     return render_template("search.html", search_string=search_string, results=results)
 

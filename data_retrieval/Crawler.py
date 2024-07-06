@@ -11,12 +11,19 @@ from queue import Queue
 import re
 import robotexclusionrulesparser as rerp
 import nltk
-import en_core_web_sm
+import en_core_web_sm   # df: Make sure to run "python -m spacy download en_core_web_sm" for this import to work
 from datetime import datetime
 from keybert import KeyBERT
+from nltk.corpus import stopwords
 
-nltk.download("stopwords")
-nlp = en_core_web_sm.load()
+from utils.directoryutil import get_path
+
+NLTK_PATH = get_path("nltk_data")
+
+nltk.data.path.append(NLTK_PATH)
+nltk.download("stopwords", download_dir=NLTK_PATH)
+nltk.download("punkt", download_dir=NLTK_PATH)
+nlp = en_core_web_sm.load() # df: I am not sure if we are allowed to use this one
 kw_model = KeyBERT("distilbert-base-nli-mean-tokens")
 
 
@@ -98,7 +105,7 @@ class Crawler:
     def preprocess_text(self, text):
         # TODO hyphen is not treated the right way (e.g. we get baden and württemberg instead of baden-württemberg)
         """Lowercases, tokenizes, and removes stopwords from the page content."""
-        eng_stopwords = nltk.corpus.stopwords.words("english")
+        eng_stopwords = set(stopwords.words("english"))
         processed_text = " ".join([i for i in nltk.word_tokenize(text.lower()) if i not in eng_stopwords])
         return processed_text
 
@@ -289,7 +296,7 @@ class Crawler:
             print("Reached the maximum number of pages to crawl.")
         else:
             print("Something went wrong. Please double-check your code.")
-        
+
 
 
 if __name__ == "__main__":
