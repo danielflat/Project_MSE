@@ -1,27 +1,27 @@
+import csv
+import os
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from multiprocessing import Pool, cpu_count
+
+import math
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from transformers import Trainer, TrainingArguments
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-import os
-from collections import defaultdict
-import csv
-import re
-from multiprocessing import Pool, cpu_count
-import numpy as np
-from abc import ABC, abstractmethod
 from sklearn.feature_extraction.text import TfidfVectorizer
-import math
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from torch.utils.data import Dataset, DataLoader
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import Trainer, TrainingArguments, BertTokenizer
 
+from db.DocumentRepository import DocumentRepository
 
 DEBUG = True
 
 
-class Ranker:
-
+class RankerFlat:
     def __init__(self):
         self.documentRepository = DocumentRepository()
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
