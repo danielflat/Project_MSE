@@ -1,8 +1,16 @@
+import os
+from typing import Any
+
 import psycopg2
 from datetime import datetime, timedelta
+import docker
+from docker.errors import DockerException
+from docker.models.resource import Model
 
 from db.DocumentEntry import DocumentEntry
 from psycopg2.extras import execute_values
+
+from utils.directoryutil import get_path
 
 
 class DocumentRepository:
@@ -10,7 +18,7 @@ class DocumentRepository:
     def __init__(self):
         try:
             # Connect to your PostgreSQL database.
-            # Here are the credentials written so the machine knows where connect to.
+            # Here are the credentials written, so the machine knows where connect to.
             self.connection = psycopg2.connect(
                 user="user",
                 password="user_pw",
@@ -90,9 +98,10 @@ class DocumentRepository:
         """
         Updates a document of the database
         """
-        values = [str(document.id), document.url, document.title, document.headings, document.page_text, document.keywords,
-                document.accessed_timestamp,
-                document.internal_links, document.external_links, document.url]
+        values = [str(document.id), document.url, document.title, document.headings, document.page_text,
+                  document.keywords,
+                  document.accessed_timestamp,
+                  document.internal_links, document.external_links, document.url]
 
         self.cursor.execute(self.updateQuery, values)
         self.connection.commit()
@@ -125,3 +134,47 @@ class DocumentRepository:
         self.cursor.execute(self.deleteAllQuery)
         self.connection.commit()
         print("SC: Deleted all documents.")
+
+    def overwrite_dumb(self):
+        """
+        Overwrites the old "./db/dump.sql" with the current state of your database-container.
+        """
+
+        try:
+            # Look first if docker is running as a sanity check
+            client = docker.from_env()
+            client.ping()
+
+            # Get the container_id of the db-container
+            container_id = self._get_container_id_by_image("project_mse-db")
+
+            # 1. Delete the old dump.sql
+            dump_path = get_path("db/dump.sql")
+            os.system(f"rm {dump_path}")
+
+            # 2. Create a new dump.sql of the current content of the db
+            os.system(f"docker exec -t {container_id} pg_dump -U user search_engine_db > {dump_path}")
+            
+            print("SC: Successfully overwritten the old dump. Now you only need to push it to the repository!")
+
+        except DockerException:
+            print("SC: Docker is unavailable now. Please start it first and try again.")
+        except Exception as error:
+            print(error)
+
+    def _get_container_id_by_image(self, image_name) -> str | None:
+        """
+        Returns the first ID of the container with the image `image_name`.
+        When starting docker in our example we want to get the container id of "project_mse-db" to create a dump out of it
+        """
+        try:
+            client = docker.from_env()
+            containers = client.containers.list(filters={"ancestor": image_name})
+
+            if containers:
+                return containers[0].id
+            else:
+                return None
+        except docker.errors.DockerException as e:
+            print(f"Error: {e}")
+            return None
