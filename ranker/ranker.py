@@ -8,12 +8,58 @@ import os
 import csv
 from multiprocessing import Pool, cpu_count
 import numpy as np
+from abc import ABC, abstractmethod
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
-def tokenizer(doc):
-    return doc.split()
+class Ranker(ABC):
+    """
+    Abstract base class for all Rankers.
+    """
 
-class BM25:
+    @abstractmethod
+    def load_data(self, file_path):
+        pass
+
+    @abstractmethod
+    def get_scores(self, query):
+        pass
+
+    @abstractmethod
+    def get_top_n(self, query, documents, n=5):
+        pass
+
+    def search(self, query, corpus, n=5):
+        search1 = set(self.get_top_n(query, corpus, n))
+        search2 = set(self.get_top_n(query[0].split(" "), corpus, n))
+        return search2.intersection(search1)
+
+class StatisticalRanker(Ranker):
+    def __init__(self, corpus, ranker_type="bm25_okapi", tokenizer=None, **kwargs):
+        self.corpus = corpus
+        self.tokenizer = tokenizer or tokenizer
+        self.ranker = self._initialize_ranker(ranker_type, **kwargs)
+
+    def _initialize_ranker(self, ranker_type, **kwargs):
+        if ranker_type == "bm25_okapi":
+            return BM25Okapi(self.corpus, self.tokenizer, **kwargs)
+        elif ranker_type == "bm25_plus":
+            return BM25Plus(self.corpus, self.tokenizer, **kwargs)
+        elif ranker_type == "bm25_l":
+            return BM25L(self.corpus, self.tokenizer, **kwargs)
+        elif ranker_type == "tfidf":
+            return TFIIDF(self.corpus)
+        else:
+            raise ValueError(f"Unknown ranker type: {ranker_type}")
+
+    def get_scores(self, query):
+        return self.ranker.get_scores(query)
+
+    def get_top_n(self, query, documents, n=5):
+        return self.ranker.get_top_n(query, documents, n)
+
+
+class BM25(Ranker):
     '''
     Ranker class for BM25 ranking model
 
@@ -212,23 +258,23 @@ class BM25L(BM25):
         return score.tolist()
 
 
-def search(query, corpus, ranker):
-    # Retrieve the top N ranked documents
-    search1 = set(ranker.get_top_n(query, corpus, n=5))
+class TFIIDF(Ranker):
+    def __init__(self, corpus):
+        self.vectorizer = TfidfVectorizer()
+        self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
 
-    search2 = set(ranker.get_top_n(query[0].split(" "), corpus, n=5))
+    def get_scores(self, query):
+        query_vec = self.vectorizer.transform([' '.join(query)])
+        scores = np.dot(query_vec, self.tfidf_matrix.T).toarray()[0]
+        return scores
 
-    return search2.intersection(search1)
+    def get_top_n(self, query, documents, n=5):
+        scores = self.get_scores(query)
+        top_n_indices = np.argsort(scores)[::-1][:n]
+        return [documents[i] for i in top_n_indices]
 
 
-
-
-
-
-
-
-
-class NeuralRanker:
+class NeuralRanker(Ranker):
     def __init__(self, model_path: str, tokenizer_path: str, device: str = 'cpu'):
         self.device = device
         print(f"Loading tokenizer from {tokenizer_path}")
@@ -316,7 +362,22 @@ class NeuralRanker:
         }
 
 
+class RankerFactory:
+    @staticmethod
+    def create_ranker(ranker_type, corpus=None, model_path=None, tokenizer_path=None, device='cpu', **kwargs):
+        if ranker_type in ['bm25_okapi', 'bm25_plus', 'bm25_l', 'tfidf']:
+            return StatisticalRanker(corpus, ranker_type=ranker_type, **kwargs)
+        elif ranker_type == 'neural':
+            if not model_path or not tokenizer_path:
+                raise ValueError("For neural ranker, 'model_path' and 'tokenizer_path' must be provided")
+            return NeuralRanker(model_path, tokenizer_path, device)
+        else:
+            raise ValueError(f"Unknown ranker type: {ranker_type}")
 
+
+
+def tokenizer(doc):
+    return doc.split()
 
 
 if __name__ == "__main__":
