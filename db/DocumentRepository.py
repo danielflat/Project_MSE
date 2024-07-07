@@ -1,15 +1,13 @@
 import os
-from typing import Any
 
-import psycopg2
-from datetime import datetime, timedelta
 import docker
+import numpy as np
+import psycopg2
 from docker.errors import DockerException
-from docker.models.resource import Model
+from psycopg2.extras import execute_values
+from transformers import BertTokenizer
 
 from db.DocumentEntry import DocumentEntry
-from psycopg2.extras import execute_values
-
 from utils.directoryutil import get_path
 
 
@@ -29,6 +27,9 @@ class DocumentRepository:
 
             # Create a cursor object. We need this to execute queries.
             self.cursor = self.connection.cursor()
+
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
 
             # for sanity check (SC)
             print("SC: Connected to the db. Now you can go and build the best search engine around!")
@@ -126,6 +127,18 @@ class DocumentRepository:
         execute_values(self.cursor, self.insertAllQuery, values)
         self.connection.commit()
         print("SC: All documents saved.")
+
+    def getEncodedTextOfAllDocuments(self) -> dict[str, np.array]:
+        """
+        Encodes the text using BERT tokenizer
+        """
+        allDocuments = self.loadAllDocuments()
+        documents_vectors = {}
+        for doc in allDocuments:
+            encode = self.tokenizer.encode(doc.page_text, add_special_tokens=False)
+            doc_vec = np.array(encode)
+            documents_vectors[doc.url] = doc_vec
+        return documents_vectors
 
     def deleteAllDocuments(self) -> None:
         """
