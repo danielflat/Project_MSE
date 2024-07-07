@@ -1,6 +1,6 @@
-# Crawl the web. You need (at least) two parameters:
-# frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
-# index: The location of the local index storing the discovered documents.
+# Crawl the web. You need (at least) two parameters: frontier: The frontier of known URLs to crawl. You will
+# initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs
+# here. index: The location of the local index storing the discovered documents.
 
 import json
 import urllib.request
@@ -11,10 +11,11 @@ from queue import Queue
 import re
 import robotexclusionrulesparser as rerp
 import nltk
-import en_core_web_sm   # df: Make sure to run "python -m spacy download en_core_web_sm" for this import to work
+import en_core_web_sm  # df: Make sure to run "python -m spacy download en_core_web_sm" for this import to work
 from datetime import datetime
 from keybert import KeyBERT
 from nltk.corpus import stopwords
+from urllib.parse import urlparse
 
 from utils.directoryutil import get_path
 
@@ -23,7 +24,7 @@ NLTK_PATH = get_path("nltk_data")
 nltk.data.path.append(NLTK_PATH)
 nltk.download("stopwords", download_dir=NLTK_PATH)
 nltk.download("punkt", download_dir=NLTK_PATH)
-nlp = en_core_web_sm.load() # df: I am not sure if we are allowed to use this one
+nlp = en_core_web_sm.load()  # df: I am not sure if we are allowed to use this one
 kw_model = KeyBERT("distilbert-base-nli-mean-tokens")
 
 
@@ -81,25 +82,46 @@ class Crawler:
             print(f"Failed to fetch page: {e}")
             return None
 
+    def is_internal_link(self, base_url, link_url):
+        """
+        Determines if `link_url` is an internal link of the base domain.
+        Returns: True if it is, False otherwise.
+        """
+        return (not link_url.startswith("http") # "https" is included here; to find relative links, e.g. /menu
+                or self.is_subdomain(base_url, link_url))
+
+    def is_subdomain(self, base_url, test_url):
+        """
+        Finds out if the url to test is a subdomain of the original page. Subdomains are getting treated as
+        `internal links`
+        Returns: True if it is, False otherwise.
+        """
+
+        # Parse the URLs
+        main_domain = urlparse(base_url).hostname
+        test_domain = urlparse(test_url).hostname
+
+        # Check if test_url ends with base_url
+        return test_domain.endswith(main_domain)
+
     def parse_links(self, html, base_url):
         """Parses and returns all links found in the HTML content."""
         soup = BeautifulSoup(html, "html.parser")
         internal_links = []
         external_links = []
-        for link in soup.find_all("a", href=True):
-            href = link["href"]
-            if "#" in href:
+        for a_tag in soup.find_all("a", href=True):
+            link_url = a_tag["href"]
+            if "#" in link_url:
                 continue
-            # to find relative links, e.g. /menu
-            if not href.startswith("http"):
+            if self.is_internal_link(base_url, link_url):
                 # filtering out stuff like that is also located in <a>
-                if "/" not in href:
-                    print(f"Filtered out invalid internal link: {href}")
+                if "/" not in link_url:
+                    print(f"Filtered out invalid internal link: {link_url}")
                     continue
-                href = urllib.parse.urljoin(base_url, href)
-                internal_links.append(href)
+                link_url = urllib.parse.urljoin(base_url, link_url)
+                internal_links.append(link_url)
             else:
-                external_links.append(href)
+                external_links.append(link_url)
         return internal_links, external_links
 
     def preprocess_text(self, text):
@@ -189,7 +211,7 @@ class Crawler:
         if html_tag and html_tag.get("lang"):
             return html_tag.get("lang").startswith("en")
         return False
-    
+
     def crawl_and_index_prioritised_link(self):
         print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")
         url = self.to_visit_prioritised.get()
@@ -220,7 +242,7 @@ class Crawler:
                     # for unknown links, assume that they are not Tuebingen-focused 
                     # and put them to general (not prioritised) queue
                     self.to_visit.put(link)
-            
+
             if webpage_info:
                 webpage_info["internal_links"] = internal_links
                 webpage_info["external_links"] = external_links
@@ -229,7 +251,6 @@ class Crawler:
             time.sleep(1)
         return webpage_info
 
-    
     def crawl_and_index_general_link(self):
         print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")
         url = self.to_visit.get()
@@ -271,11 +292,10 @@ class Crawler:
             time.sleep(1)
         return webpage_info
 
-
     def __iter__(self):
         """Main function to start the crawling process."""
 
-        # crawl Tuebingen-focused websites and their internal links first
+        # crawl Tübingen-focused websites and their internal links first
         while not self.to_visit_prioritised.empty() and self.n_crawled_pages < self.max_pages:
             webpage_info = self.crawl_and_index_prioritised_link()
             if webpage_info:
@@ -284,7 +304,7 @@ class Crawler:
         if self.to_visit_prioritised.empty():
             print("Finished crawling prioritised sites and their children.")
 
-        # crawl general websites & Tuebingen-focused websites' external links
+        # crawl general websites & Tübingen-focused websites' external links
         while not self.to_visit.empty() and self.n_crawled_pages < self.max_pages:
             webpage_info = self.crawl_and_index_general_link()
             if webpage_info:
@@ -296,7 +316,6 @@ class Crawler:
             print("Reached the maximum number of pages to crawl.")
         else:
             print("Something went wrong. Please double-check your code.")
-
 
 
 if __name__ == "__main__":
