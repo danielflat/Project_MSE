@@ -3,19 +3,21 @@
 # here. index: The location of the local index storing the discovered documents.
 
 import json
-import urllib.request
-from bs4 import BeautifulSoup
+import re
 import time
 import urllib.parse
-from queue import Queue
-import re
-import robotexclusionrulesparser as rerp
-import nltk
-import en_core_web_sm  # df: Make sure to run "python -m spacy download en_core_web_sm" for this import to work
+import urllib.request
 from datetime import datetime
+from queue import Queue
+from urllib.parse import urlparse
+
+import en_core_web_sm  # df: Make sure to run "python -m spacy download en_core_web_sm" for this import to work
+import nltk
+import robotexclusionrulesparser as rerp
+from bs4 import BeautifulSoup
 from keybert import KeyBERT
 from nltk.corpus import stopwords
-from urllib.parse import urlparse
+from simhash import Simhash
 
 from utils.directoryutil import get_path
 
@@ -44,6 +46,7 @@ class Crawler:
             self.to_visit.put(url)
         self.robot_parsers = {}
         self.domain_steps = {}
+        self.page_hashes = {}
         self.visited_domains = set()
         # uncomment if we want to get rid of iterable logic
         # self.scraped_webpages_info = []
@@ -211,6 +214,35 @@ class Crawler:
         if html_tag and html_tag.get("lang"):
             return html_tag.get("lang").startswith("en")
         return False
+
+    def _hamming_distance(self, hash1, hash2):
+        """
+        It looks how many bits are different between the two hashes by computing the hamming distance.
+        Returns: 0 <= distance <= len(hash1)
+        """
+        x = (hash1.value ^ hash2.value) & ((1 << 64) - 1)
+        distance = bin(x).count('1')
+        return distance
+
+    def is_duplicate(self, html, threshold=5):
+        """
+        Should check if a html page is duplicate or not by checking it against an existing collection of previously
+        seen documents for near duplicates Returns True if duplicate or not.
+        Param: threshold: if the hemming distance of a document is smaller equals the threshold, it is detected as a duplicate.
+        """
+        element_hash = Simhash(html).value
+        for hash in self.page_hashes:
+            distance = self._hamming_distance(element_hash, hash)
+            if distance <= threshold:
+                return True
+        return False
+
+    def is_html(self, html):
+        """
+        Checks if the page content is a HTML file and not sth like a PowerPoint presentation
+        """
+        # TODO: Implement
+        raise NotImplementedError
 
     def crawl_and_index_prioritised_link(self):
         print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")

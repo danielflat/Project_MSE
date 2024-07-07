@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request
-from flask_bootstrap import Bootstrap
-from ranker.ranker import BM25Okapi
 import os
-import pandas as pd
 
+import pandas as pd
+from flask import Flask, render_template
+from flask_bootstrap import Bootstrap
+
+from ranker.ranker import BM25Okapi
 
 app = Flask(__name__)
 Bootstrap(app)
@@ -34,9 +35,11 @@ tokenized_corpus = [doc.split() for doc in documents]
 
 ranker = BM25Okapi(tokenized_corpus)
 
+
 @app.route("/")
 def index_page():
     return render_template("index.html")
+
 
 @app.route('/<search_string>')
 def search_page(search_string):
@@ -47,13 +50,16 @@ def search_page(search_string):
 
     return render_template("search.html", search_string=search_string, results=results)
 
+
 @app.get("/test")
 def test_page():
     return render_template("test.html")
 
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template("notfound.html"), 404
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

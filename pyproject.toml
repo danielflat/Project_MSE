@@ -31,6 +31,7 @@ beautifulsoup4 = "^4.12.3"
 urllib3 = "^2.2.2"
 nltk = "^3.8.1"
 openpyxl = "^3.1.5"
+simhash = "^2.1.2"
 
 
 [tool.poetry.group.ranker.dependencies]
