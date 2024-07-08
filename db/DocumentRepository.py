@@ -1,8 +1,14 @@
+import os
+
+import docker
+import numpy as np
 import psycopg2
-from datetime import datetime, timedelta
+from docker.errors import DockerException
+from psycopg2.extras import execute_values
+from transformers import BertTokenizer
 
 from db.DocumentEntry import DocumentEntry
-from psycopg2.extras import execute_values
+from utils.directoryutil import get_path
 
 
 class DocumentRepository:
@@ -10,7 +16,7 @@ class DocumentRepository:
     def __init__(self):
         try:
             # Connect to your PostgreSQL database.
-            # Here are the credentials written so the machine knows where connect to.
+            # Here are the credentials written, so the machine knows where connect to.
             self.connection = psycopg2.connect(
                 user="user",
                 password="user_pw",
@@ -22,10 +28,13 @@ class DocumentRepository:
             # Create a cursor object. We need this to execute queries.
             self.cursor = self.connection.cursor()
 
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+
             # for sanity check (SC)
             print("SC: Connected to the db. Now you can go and build the best search engine around!")
         except (Exception, psycopg2.Error) as error:
-            print("SC: Connecting to PostgreSQL did not work. Fix it", error)
+            print("SC: Connecting to PostgreSQL did not work. Maybe try to run it again.", error)
 
         # We save every query expression, so we have a good overview which operations we do with the database
         self.insertQuery: str = """
@@ -90,9 +99,10 @@ class DocumentRepository:
         """
         Updates a document of the database
         """
-        values = [str(document.id), document.url, document.title, document.headings, document.page_text, document.keywords,
-                document.accessed_timestamp,
-                document.internal_links, document.external_links, document.url]
+        values = [str(document.id), document.url, document.title, document.headings, document.page_text,
+                  document.keywords,
+                  document.accessed_timestamp,
+                  document.internal_links, document.external_links, document.url]
 
         self.cursor.execute(self.updateQuery, values)
         self.connection.commit()
@@ -118,6 +128,18 @@ class DocumentRepository:
         self.connection.commit()
         print("SC: All documents saved.")
 
+    def getEncodedTextOfAllDocuments(self) -> dict[str, np.array]:
+        """
+        Encodes the text using BERT tokenizer
+        """
+        allDocuments = self.loadAllDocuments()
+        documents_vectors = {}
+        for doc in allDocuments:
+            encode = self.tokenizer.encode(doc.page_text, add_special_tokens=False)
+            doc_vec = np.array(encode)
+            documents_vectors[doc.url] = doc_vec
+        return documents_vectors
+
     def deleteAllDocuments(self) -> None:
         """
         Clears all documents from the database. WARNING: You cannot undo this operation.
@@ -125,3 +147,47 @@ class DocumentRepository:
         self.cursor.execute(self.deleteAllQuery)
         self.connection.commit()
         print("SC: Deleted all documents.")
+
+    def overwrite_dumb(self):
+        """
+        Overwrites the old "./db/dump.sql" with the current state of your database-container.
+        """
+
+        try:
+            # Look first if docker is running as a sanity check
+            client = docker.from_env()
+            client.ping()
+
+            # Get the container_id of the db-container
+            container_id = self._get_container_id_by_image("project_mse-db")
+
+            # 1. Delete the old dump.sql
+            dump_path = get_path("db/dump.sql")
+            os.system(f"rm {dump_path}")
+
+            # 2. Create a new dump.sql of the current content of the db
+            os.system(f"docker exec -t {container_id} pg_dump -U user search_engine_db > {dump_path}")
+            
+            print("SC: Successfully overwritten the old dump. Now you only need to push it to the repository!")
+
+        except DockerException:
+            print("SC: Docker is unavailable now. Please start it first and try again.")
+        except Exception as error:
+            print(error)
+
+    def _get_container_id_by_image(self, image_name) -> str | None:
+        """
+        Returns the first ID of the container with the image `image_name`.
+        When starting docker in our example we want to get the container id of "project_mse-db" to create a dump out of it
+        """
+        try:
+            client = docker.from_env()
+            containers = client.containers.list(filters={"ancestor": image_name})
+
+            if containers:
+                return containers[0].id
+            else:
+                return None
+        except docker.errors.DockerException as e:
+            print(f"Error: {e}")
+            return None

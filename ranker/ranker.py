@@ -1,28 +1,113 @@
+import csv
+import os
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from multiprocessing import Pool, cpu_count
+
+import math
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from transformers import Trainer, TrainingArguments
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-import os
-from collections import defaultdict
-import csv
-import re
-from multiprocessing import Pool, cpu_count
-import numpy as np
-from abc import ABC, abstractmethod
 from sklearn.feature_extraction.text import TfidfVectorizer
-import math
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from torch.utils.data import Dataset, DataLoader
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import Trainer, TrainingArguments, BertTokenizer
 
+from db.DocumentRepository import DocumentRepository
 
 DEBUG = True
 
 
+class RankerFlat:
+    def __init__(self):
+        self.documentRepository = DocumentRepository()
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+    def rank_query(self, query):
+        tokenized_query = self.tokenizer.encode(query)
+        documents_vectors = self.documentRepository.getEncodedTextOfAllDocuments()
+        bm25_scores = self.rank_BM25(tokenized_query, documents_vectors)
+        return bm25_scores
+
+    def _compute_tf(self, token, doc_vec):
+        return np.sum(doc_vec == token)
+
+    def _compute_idf(self, documents: list[np.array]):
+        N = len(documents)
+        idf = {}
+        for document in documents:
+            for word in document:
+                if word in idf:
+                    idf[word] += 1
+                else:
+                    idf[word] = 1
+        for word, count in idf.items():
+            idf[word] = np.log(((N + 1) / (count + 0.5)) + 1)
+        return idf
+
+    def rank_BM25(self, tokenized_query: list[int], documents_vectors: dict[str, np.array], k=1.5, b=0.75):
+        """
+        Calculate the Okapi Best Model 25 scores for a set of documents given a query.
+        The BM25 score for a document D given a query Q is calculated as:
+        BM25(D, Q) = Σ [ IDF(q_i) * (f(q_i, D) * (k + 1)) / (f(q_i, D) + k * (1 - b + b * (|D| / avgdl))) ]
+
+        Note: The BM25 score of a document is <= 0 but can be > 1.
+
+        Where:
+            - q_i: the i-th term in the query Q.
+            - f(q_i, D): term frequency of q_i in document D.
+            - |D|: length of document D.
+            - avgdl: average document length in the corpus.
+            - k: controls the term frequency saturation. Typical values range from 1.2 to 2.0.
+            - b: controls the length normalization. Typical values range from 0.75 to 1.0.
+            - IDF(q_i): inverse document frequency of the term q_i.
+
+        Parameters:
+            tokenized_query (list of int): list of tokens.
+            documents_vectors (dict of (str, np.array)): contains for each url the encoded np.array
+            k (float, optional): term frequency saturation parameter. Default is 1.5.
+            b (float, optional): length normalization parameter. Default is 0.75.
+
+        Returns:
+            Dict[str, float]: a dictionary where keys are the urls and values are the corresponding BM25 scores.
+        """
+        # Compute the number of documents
+        n = len(documents_vectors)
+
+        # TODO: Can be precomputed ------
+        # Compute average document length
+        vectors_list = list(documents_vectors.values())
+        avg_doc_len = np.mean([len(i) for i in vectors_list])
+
+        # Compute IDF for all terms in the corpus
+        idf = self._compute_idf(vectors_list)
+        # --------
+
+        scores = {}
+
+        # Compute term frequency IF(q, d)
+        for url, doc_vec in documents_vectors.items():
+            score = 0
+            doc_length = len(doc_vec)
+
+            for token in tokenized_query:
+                tf = self._compute_tf(token, doc_vec)
+                numerator = (idf.get(token, np.log(
+                    n + 1))  # assuming for a new word to have a high IDF-value because it's "rare".
+                             * tf * (k - 1))  # frequency counting penalty
+                denominator = tf + k * (1 - b + b * (doc_length / avg_doc_len))  # length norm
+                score += numerator / denominator
+
+            scores[url] = score
+
+        sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+        return sorted_scores
+
 def tokenizer(doc):
     return doc.split()
-
 
 class Ranker(ABC):
     """
