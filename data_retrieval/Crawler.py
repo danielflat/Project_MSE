@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import time
 import urllib.parse
 from queue import Queue
+from collections import deque 
 import re
 import robotexclusionrulesparser as rerp
 import nltk
@@ -19,30 +20,42 @@ nltk.download("stopwords")
 nlp = en_core_web_sm.load()
 kw_model = KeyBERT("distilbert-base-nli-mean-tokens")
 
+# domains that are in English but are falsely detected as German
+FALSE_POSITIVE_LINKS = [
+    "https://www.medizin.uni-tuebingen.de/en-de/",
+    "https://www.neurochirurgie-tuebingen.de/en/"
+    ]
 
 class Crawler:
     def __init__(
         self,
         frontier,
         max_pages,
-        max_steps_per_domain,
+        max_steps_per_domain_general,
+        max_steps_per_domain_prioritised,
         timeout,
-        visited=set(),
-        to_visit=Queue(),
-        to_visit_prioritised=Queue(),
-        visited_domains=set(),
+        visited=None,
+        to_visit=None,
+        to_visit_prioritised=None,
+        visited_domains=None,
+        domain_steps=None,
+        extra_links=None,
+        verbose=False
     ):
         self.frontier = frontier
         self.n_crawled_pages = 0
         self.max_pages = max_pages
-        self.max_steps_per_domain = max_steps_per_domain
+        self.max_steps_per_domain_general = max_steps_per_domain_general
+        self.max_steps_per_domain_prioritised = max_steps_per_domain_prioritised
         self.timeout = timeout
-        self.visited = visited
-        self.to_visit = to_visit
-        self.to_visit_prioritised = to_visit_prioritised
+        self.visited = visited or set()
+        self.to_visit = to_visit or deque()
+        self.to_visit_prioritised = to_visit_prioritised or deque()
         self.robot_parsers = {}
-        self.domain_steps = {}
-        self.visited_domains = visited_domains
+        self.domain_steps = domain_steps or {}
+        self.visited_domains = visited_domains or set()
+        self.verbose = verbose
+        self.extra_links = extra_links or []
         # uncomment if we want to get rid of iterable logic
         # self.scraped_webpages_info = []
 
@@ -77,8 +90,16 @@ class Crawler:
             response = urllib.request.urlopen(url, timeout=self.timeout)
             return response.read()
         except Exception as e:
-            print(f"Failed to fetch page: {e}")
+            print(f"{url}: Failed to fetch page: {e}")
             return None
+
+    def is_media_link(self, link):
+        media_extensions = {
+            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.svg', # Image extensions
+            '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', # Video extensions
+            '.mp3', '.wav', '.aac', '.flac', '.ogg', '.wma', '.m4a' # Audio extensions
+            }
+        return any(link.lower().endswith(ext) for ext in media_extensions)
 
     def parse_links(self, html, base_url):
         """Parses and returns all links found in the HTML content."""
@@ -87,13 +108,16 @@ class Crawler:
         external_links = []
         for link in soup.find_all("a", href=True):
             href = link["href"]
-            if "#" in href:
+            # to filter out links leading to other parts of the page
+            # and links to images, videos, audios
+            if "#" in href or self.is_media_link(href):
                 continue
             # to find relative links, e.g. /menu
             if not href.startswith("http"):
                 # filtering out stuff like that is also located in <a>
                 if "/" not in href:
-                    print(f"Filtered out invalid internal link: {href}")
+                    if self.verbose:
+                        print(f"Filtered out invalid internal link: {href}")
                     continue
                 href = urllib.parse.urljoin(base_url, href)
                 internal_links.append(href)
@@ -152,7 +176,8 @@ class Crawler:
         keywords, timestamp of the page creation / last update,
         timestamp of when the crawler accessed the page."""
         webpage_content = {}
-        print(f"Indexing...")
+        if self.verbose:
+            print(f"Indexing...")
         try:
             accessed_timestamp = datetime.now()
             soup = BeautifulSoup(html, "html.parser")
@@ -169,15 +194,17 @@ class Crawler:
                 "title": title,
                 "headings": headings,
                 "page_text": page_text,
+                "raw_html": html,
                 "keywords": keywords,
                 # "created_or_updated_timestamp": created_or_updated_timestamp,
                 "accessed_timestamp": accessed_timestamp,
             }
-            print(f"Indexed url {url} with title `{title}` successfully.")
+            if self.verbose:
+                print(f"Indexed url {url} with title `{title}` successfully.")
             # this line is for debugging
             # print(webpage_content)
         except Exception as e:
-            print(f"Faced an error while indexing url {url}: {e}. Moving on to the next page.")
+            print(f"{url}: faced an error while indexing, {e}. Moving on to the next page.")
 
         return webpage_content
 
@@ -189,119 +216,135 @@ class Crawler:
             return html_tag.get("lang").startswith("en")
         return False
 
-    def crawl_and_index_prioritised_link(self):
-        print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")
-        url = self.to_visit_prioritised.get()
+
+    def check_if_should_be_crawled(self, domain, url):
+        _should_be_crawled = True
+
+        if url in self.visited:
+            if self.verbose:
+                print(f"{url}: already visited.")
+            _should_be_crawled = False
+
+        elif not self.is_allowed(url):
+            if self.verbose:
+                print(f"{url}: crawling not allowed.")
+            _should_be_crawled = False
+        
+        elif self.is_media_link(url):
+            if self.verbose:
+                print(f"{url}: link to media.")
+            _should_be_crawled = False
+        
+        elif domain in self.visited_domains:
+            if self.verbose:
+                print(f"{url}: domain hit the max number of visits.")
+            _should_be_crawled = False
+            self.extra_links.append(url)
+        
+        return _should_be_crawled
+
+    def crawl_and_index_link(self, to_visit_queue, max_steps_per_domain):
+        if self.verbose:
+            print(f"Pages crawled: {self.n_crawled_pages}. \
+Pages left: {self.max_pages - self.n_crawled_pages}.")
+        url = to_visit_queue.popleft()
         domain = urllib.parse.urlparse(url).netloc
         webpage_info = None
 
-        # no visited domain restriction here
-        if url in self.visited or not self.is_allowed(url):
-            return webpage_info
-
-        print(f"Crawling: {url}")
-        # add to visited even if not english / no html to avoid checking again
-        self.visited.add(url)
-        self.visited_domains.add(domain)
-
-        html = self.fetch_page(url)
-        if html and self.is_english(html):
-            webpage_info = self.index_page(url, html)
-            internal_links, external_links = self.parse_links(html, url)
-
-            for link in internal_links:
-                # for internal links on Tuebingen-focused websites, there is no limit on domain steps
-                # internal links that are children of a prioritised link are also prioritised
-                self.to_visit_prioritised.put(link)
-
-            for link in external_links:
-                if link not in self.visited and link not in self.visited_domains:
-                    # for unknown links, assume that they are not Tuebingen-focused
-                    # and put them to general (not prioritised) queue
-                    self.to_visit.put(link)
-
-            if webpage_info:
-                webpage_info["internal_links"] = internal_links
-                webpage_info["external_links"] = external_links
-
-            self.n_crawled_pages += 1
-            time.sleep(1)
-        return webpage_info
-
-    def crawl_and_index_general_link(self):
-        print(f"Pages crawled: {self.n_crawled_pages}. Pages left: {self.max_pages - self.n_crawled_pages}.")
-        url = self.to_visit.get()
-        domain = urllib.parse.urlparse(url).netloc
-        webpage_info = None
-
-        if url in self.visited or domain in self.visited_domains or not self.is_allowed(url):
-            return webpage_info
-
-        print(f"Crawling: {url}")
-        # add to visited even if not english / no html to avoid checking again
-        self.visited.add(url)
-        html = self.fetch_page(url)
-        if html and self.is_english(html):
-            webpage_info = self.index_page(url, html)
-            internal_links, external_links = self.parse_links(html, url)
-
-            if domain not in self.domain_steps:
-                self.domain_steps[domain] = 0
-
-            for link in internal_links:
-                # break if more than max_steps_per_domain internal links are already in to_visit queue
-                if self.domain_steps[domain] < self.max_steps_per_domain:
-                    self.to_visit.put(link)
-                    self.domain_steps[domain] += 1
+        if self.check_if_should_be_crawled(domain, url):
+            if self.verbose:
+                print(f"Crawling: {url}")
+            # add to visited even if not english / no html to avoid checking again
+            self.visited.add(url)
+            html = self.fetch_page(url)
+            if html:
+                # some links from the prioritised queue have "de" set
+                # even though they are in English. we want to crawl them anyways
+                if not self.is_english(html) and not any(url.startswith(fp) for fp in FALSE_POSITIVE_LINKS):
+                    if self.verbose:
+                        print(f"{url}: not in English.")
                 else:
-                    break
+                    webpage_info = self.index_page(url, html)
+                    internal_links, external_links = self.parse_links(html, url)
 
-            for link in external_links:
-                external_link_domain = urllib.parse.urlparse(link).netloc
-                if link not in self.visited and external_link_domain not in self.visited_domains:
-                    self.to_visit.put(link)
+                    if domain not in self.domain_steps:
+                        self.domain_steps[domain] = 1
+                    else:
+                        self.domain_steps[domain] += 1
 
-            if webpage_info:
-                webpage_info["internal_links"] = internal_links
-                webpage_info["external_links"] = external_links
+                    for link in internal_links:
+                        # not adding visited links; may add visited domains
+                        if link not in self.visited and link not in to_visit_queue:
+                            # internal links that are children of a Tuebingen-focused link 
+                            # are also assumed to be Tuebingen-focused;
+                            # thus they go into prioritised queue for Tuebingen-focused link
+                            # and general queue for general links
+                            to_visit_queue.append(link)
 
-            self.n_crawled_pages += 1
-            time.sleep(1)
+                    for link in external_links:
+                        if link not in self.visited and link not in self.to_visit:
+                            # external links are assumed to be not Tuebingen-focused;
+                            # thus they always go into general (not prioritised) queue
+                            self.to_visit.append(link)
+
+                    if webpage_info:
+                        webpage_info["internal_links"] = internal_links
+                        webpage_info["external_links"] = external_links
+
+                    self.n_crawled_pages += 1
+                    time.sleep(1)
+
+                    # if we visited enough pages in a given domain, add this domain to visited_domains
+                    # next time a page from this domain will be skipped
+                    if self.domain_steps[domain] == max_steps_per_domain:
+                        self.visited_domains.add(domain)
+
         return webpage_info
+
 
     def __iter__(self):
         """Main function to start the crawling process."""
 
         if self.visited:
             print(f"""Continue crawling from a checkpoint. to_visit_prioritised len: \
-{len(list(self.to_visit_prioritised.queue))}, to_visit len: {len(list(self.to_visit.queue))}, \
-visited len: {len(self.visited)}, visited_domains len: {len(self.visited_domains)} \
+{len(self.to_visit_prioritised)}, to_visit len: {len(self.to_visit)}, \
+visited len: {len(self.visited)}, visited_domains len: {len(self.visited_domains)} extra_links len: {len(self.extra_links)} \
+domain_steps: {self.domain_steps},
 For specific values please refer to the backup json file.""")
         else:
             print("Start crawling from the very beginning. Good luck!")
 
-        for url in self.frontier["tuebingen_focused_pages"]:
-            self.to_visit_prioritised.put(url)
-        for url in self.frontier["general_pages"]:
-            self.to_visit.put(url)
+        # fill queues with values from frontiers if they are not pre-defined from a checkpoint
+        if not self.to_visit_prioritised:
+            for url in self.frontier["tuebingen_focused_pages"]:
+                self.to_visit_prioritised.append(url)
+        if not self.to_visit:
+            for url in self.frontier["general_pages"]:
+                self.to_visit.append(url)
 
         # crawl Tuebingen-focused websites and their internal links first
-        while not self.to_visit_prioritised.empty() and self.n_crawled_pages < self.max_pages:
-            webpage_info = self.crawl_and_index_prioritised_link()
-            if webpage_info:
-                yield webpage_info, self.to_visit_prioritised, self.to_visit, self.visited_domains, self.visited
+        while self.to_visit_prioritised and self.n_crawled_pages < self.max_pages:
+            try:
+                webpage_info = self.crawl_and_index_link(to_visit_queue=self.to_visit_prioritised, max_steps_per_domain=self.max_steps_per_domain_prioritised)
+                if webpage_info:
+                    yield webpage_info, self.to_visit_prioritised, self.to_visit, self.visited_domains, self.visited, self.domain_steps, self.extra_links
+            except Exception as e:
+                print(f" {url}: Encountered error {e}. Skipping this url.")
 
-        if self.to_visit_prioritised.empty():
+        if not self.to_visit_prioritised:
             print("Finished crawling prioritised sites and their children.")
 
         # crawl general websites & Tuebingen-focused websites' external links
-        while not self.to_visit.empty() and self.n_crawled_pages < self.max_pages:
-            webpage_info = self.crawl_and_index_general_link()
-            if webpage_info:
-                yield webpage_info, self.to_visit_prioritised, self.to_visit, self.visited_domains, self.visited
+        while self.to_visit and self.n_crawled_pages < self.max_pages:
+            try:
+                webpage_info = self.crawl_and_index_link(to_visit_queue=self.to_visit, max_steps_per_domain=self.max_steps_per_domain_general)
+                if webpage_info:
+                    yield webpage_info, self.to_visit_prioritised, self.to_visit, self.visited_domains, self.visited, self.domain_steps, self.extra_links
+            except Exception as e:
+                print(f"{url}: Encountered error {e}. Skipping this url.")
 
-        if self.to_visit.empty():
-            print("Finished crawling all sites; queue is empty.")
+        if not self.to_visit:
+            print("Finished crawling general sites.")
         elif self.n_crawled_pages >= self.max_pages:
             print("Reached the maximum number of pages to crawl.")
         else:
