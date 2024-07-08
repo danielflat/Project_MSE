@@ -371,12 +371,14 @@ class Crawler:
 
     def __iter__(self):
         """Main function to start the crawling process."""
-
-        # crawl Tübingen-focused websites and their internal links first
-        while not self.to_visit_prioritised.empty() and self.n_crawled_pages < self.max_pages:
-            webpage_info = self.crawl_and_index_prioritised_link()
-            if webpage_info:
-                yield webpage_info
+        if self.visited:
+            print(f"""Continue crawling from a checkpoint. to_visit_prioritised len: \
+{len(self.to_visit_prioritised)}, to_visit len: {len(self.to_visit)}, \
+visited len: {len(self.visited)}, visited_domains len: {len(self.visited_domains)} extra_links len: {len(self.extra_links)} \
+domain_steps: {self.domain_steps},
+For specific values please refer to the backup json file.""")
+        else:
+            print("Start crawling from the very beginning. Good luck!")
 
         # fill queues with values from frontiers if they are not pre-defined from a checkpoint
         if not self.to_visit_prioritised:
