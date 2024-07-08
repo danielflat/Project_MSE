@@ -31,11 +31,17 @@ poetry install
 #### Poetry
 To install the project dependencies, run the following command:
 ```bash
-poetry install
+poetry install;
 ```
 This command reads the `pyproject.toml` file and installs all specified dependencies into a virtual environment managed by Poetry.
 
 **Note**: When adding a package to a specific group, ensure that this package is NOT specified anywhere else in the file. Duplicates can cause issues that are hard to resolve.
+
+#### spaCy’s trained pipelines
+
+```bash
+python -m spacy download en_core_web_sm;
+```
 
 ##### Data index
 For the collaborators and the reviewers make sure that git lfs (git Large File Storage) is installed on your machine.
