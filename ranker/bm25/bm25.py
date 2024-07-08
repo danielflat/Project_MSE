@@ -413,7 +413,7 @@ def label_corpus_with_idf(corpus_df, neural_idf_scores):
 
 
 if __name__ == '__main__':
-    corpus_df = pd.read_csv('../dummyindex.csv', delimiter=',')
+    corpus_df = pd.read_csv('../../dummyindex.csv', delimiter=',')
     corpus = corpus_df['text'].tolist()
     # tokenized_corpus = [doc.split() for doc in corpus]
     tokenized_corpus = [tokenizer(doc) for doc in corpus]
