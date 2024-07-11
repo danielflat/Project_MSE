@@ -1,4 +1,5 @@
 import math
+import os
 import numpy as np
 from multiprocessing import Pool, cpu_count
 import pandas as pd
@@ -12,7 +13,8 @@ import spacy
 from transformers import BertTokenizer
 from nltk.stem import WordNetLemmatizer
 from collections import defaultdict
-import math
+from db.DocumentRepository import DocumentRepository
+
 
 bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 nlp = spacy.load('en_core_web_sm')
@@ -67,10 +69,7 @@ class Ranker(ABC):
     def get_top_n(self, query, documents, n=5):
         pass
 
-    def search(self, query, corpus, n=5):
-        search1 = set(self.get_top_n(query, corpus, n))
-        search2 = set(self.get_top_n(query[0].split(" "), corpus, n))
-        return search2.intersection(search1)
+
 
 
 # BM25 and variants implementation
@@ -413,36 +412,108 @@ def label_corpus_with_idf(corpus_df, neural_idf_scores):
 
 
 if __name__ == '__main__':
-    corpus_df = pd.read_csv('../../dummyindex.csv', delimiter=',')
-    corpus = corpus_df['text'].tolist()
-    # tokenized_corpus = [doc.split() for doc in corpus]
-    tokenized_corpus = [tokenizer(doc) for doc in corpus]
 
-    # test statistical ranker
-    for ranker_type in ['bm25_okapi', 'bm25_plus', 'bm25_l']:
-        print(ranker_type)
-        # ranker_type = 'bm25_plus'  # Change to 'bm25_plus', 'bm25_l', 'tfidf', or 'neural' as needed
-        ranker = RankerFactory.create_ranker(ranker_type, corpus=corpus, tokenizer=tokenizer)
+    # If you want to test the BM25 and neural BM25 rankers on the dummy index, set DUMMY to True
+    DUMMY = False
+    if DUMMY:
+        corpus_df = pd.read_csv('../../dummyindex.csv', delimiter=',')
+        corpus = corpus_df['text'].tolist()
+        # tokenized_corpus = [doc.split() for doc in corpus]
+        tokenized_corpus = [tokenizer(doc) for doc in corpus]
 
-        query = ['Statue', 'of','Liberty']
+        # test statistical ranker
+        for ranker_type in ['bm25_okapi', 'bm25_plus', 'bm25_l']:
+            print(ranker_type)
+            # ranker_type = 'bm25_plus'  # Change to 'bm25_plus', 'bm25_l', 'tfidf', or 'neural' as needed
+            ranker = RankerFactory.create_ranker(ranker_type, corpus=corpus, tokenizer=tokenizer)
 
-        # Retrieve the top N ranked documents
+            query = ['Statue', 'of','Liberty']
+
+            # Retrieve the top N ranked documents
+            top_n_documents = ranker.get_top_n(query, corpus, n=5)
+            print(f"{ranker_type} Top Documents:")
+            for doc in top_n_documents:
+                print(doc)
+
+        # train neural ranker
+        idf_scores = calculate_idf(tokenized_corpus)
+        training_data = prepare_training_data(tokenized_corpus, idf_scores)
+        idf_model = train_idf_model(training_data)
+        neural_idf_scores = generate_neural_idf_scores(corpus, idf_model, tokenizer)
+        label_corpus_with_idf(corpus_df, neural_idf_scores)
+
+        # ranker_type = 'neural'
+        ranker = RankerFactory.create_ranker('neural', corpus=corpus, tokenizer=tokenizer, idf_model=idf_model)
+        query = ['Statue', 'of', 'Liberty']
         top_n_documents = ranker.get_top_n(query, corpus, n=5)
-        print(f"{ranker_type} Top Documents:")
+        print("Neural Top Documents:")
         for doc in top_n_documents:
             print(doc)
 
-    # test neural ranker
-    idf_scores = calculate_idf(tokenized_corpus)
-    training_data = prepare_training_data(tokenized_corpus, idf_scores)
-    idf_model = train_idf_model(training_data)
-    neural_idf_scores = generate_neural_idf_scores(corpus, idf_model, tokenizer)
-    label_corpus_with_idf(corpus_df, neural_idf_scores)
 
-    # ranker_type = 'neural'
-    ranker = RankerFactory.create_ranker('neural', corpus=corpus, tokenizer=tokenizer, idf_model=idf_model)
-    query = ['Statue', 'of','Liberty']
-    top_n_documents = ranker.get_top_n(query, corpus, n=5)
-    print("Neural Top Documents:")
-    for doc in top_n_documents:
-        print(doc)
+
+
+
+
+    elif not DUMMY:
+
+        # Start the database container
+        os.system("""
+                docker compose down;
+                docker compose up -d --build db;""")
+
+        # Retry logic for database connection
+        retry_count = 5
+        for attempt in range(retry_count):
+            try:
+                document_repository = DocumentRepository()
+                if document_repository.cursor:
+                    break
+            except Exception as e:
+                print(f"Attempt {attempt + 1} of {retry_count} failed: {e}")
+                if attempt < retry_count - 1:
+                    print("Retrying...")
+                else:
+                    print("Max retries reached. Exiting.")
+                    exit(1)
+
+        # Fetch the real corpus from the document repository
+        corpus = document_repository.getEncodedTextOfAllDocuments()
+
+        # Tokenize the corpus using the combined tokenizer
+        tokenized_corpus = {doc_id: combined_tokenizer(text) for doc_id, text in corpus.items()}
+
+        # Calculate IDF scores
+        idf_scores = calculate_idf(list(tokenized_corpus.values()))
+        training_data = prepare_training_data(list(tokenized_corpus.values()), idf_scores)
+
+        # Train the IDF model
+        idf_model = train_idf_model(training_data)
+        neural_idf_scores = generate_neural_idf_scores(list(corpus.values()), idf_model, combined_tokenizer)
+
+        # Label the corpus with IDF scores (optional, for analysis)
+        corpus_df = pd.DataFrame(list(corpus.items()), columns=['doc_id', 'text'])
+        label_corpus_with_idf(corpus_df, neural_idf_scores)
+
+        # Test statistical ranker
+        for ranker_type in ['bm25_okapi', 'bm25_plus', 'bm25_l']:
+            print(ranker_type)
+            ranker = RankerFactory.create_ranker(ranker_type, corpus=list(tokenized_corpus.values()),
+                                                 tokenizer=tokenizer)
+
+            query = 'Tübingen'  # Example query
+            tokenized_query = combined_tokenizer(query)
+
+            # Retrieve the top N ranked documents
+            top_n_documents = ranker.get_top_n(tokenized_query, list(corpus.keys()), n=5)
+            print(f"{ranker_type} Top Documents:")
+            for doc in top_n_documents:
+                print(doc, corpus[doc])
+
+        # Test neural ranker
+        ranker = RankerFactory.create_ranker('neural', corpus=list(tokenized_corpus.values()),
+                                             tokenizer=combined_tokenizer, idf_model=idf_model)
+        top_n_documents = ranker.get_top_n(tokenized_query, list(corpus.keys()), n=5)
+        print("Neural Top Documents:")
+        for doc in top_n_documents:
+            print(doc, corpus[doc])
