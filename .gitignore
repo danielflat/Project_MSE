@@ -7,3 +7,4 @@ ranker/Miniforge3-MacOSX-arm64.sh
 ranker/.DS_Store
 .DS_Store
 *.pyclisted
+ranker/RLT4Reranking/*
