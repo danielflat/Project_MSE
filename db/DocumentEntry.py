@@ -48,6 +48,19 @@ class DocumentEntry(object):
                 f"internal_links={self.internal_links}], "
                 f"external_links={self.external_links}]")
 
+    def __eq__(self, other):
+        if isinstance(other, DocumentEntry):
+            return (str(self.id) == str(other.id)
+                    and self.url == other.url
+                    and self.title == other.title
+                    and self.headings == other.headings
+                    and self.page_text == other.page_text
+                    and self.keywords == other.keywords
+                    and self.accessed_timestamp == other.accessed_timestamp
+                    and self.internal_links == other.internal_links
+                    and self.external_links == other.external_links)
+        return False
+
     def fullString(self):
         """
         Returns the full string representation of the object. WARNING: This can be HUGE
