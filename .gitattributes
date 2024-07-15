@@ -18,3 +18,4 @@ dummyindex.csv filter=lfs diff=lfs merge=lfs -text
 poetry.lock filter=lfs diff=lfs merge=lfs -text
 templates filter=lfs diff=lfs merge=lfs -text
 MSE[[:space:]]24[[:space:]]Gruppenprojekte.ipynb filter=lfs diff=lfs merge=lfs -text
+db/dump.sql filter=lfs diff=lfs merge=lfs -text
