@@ -1,3 +1,47 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:37322c42e39d52f7f154b9b95244e2d85896aa82b5376c470e4c91c8493d3093
-size 1119
+[tool.poetry]
+name = "project-mse"
+version = "0.1.0"
+description = ""
+authors = ["Flat <daniel.flat@wps.de>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+flask = "^3.0.3"
+flask-bootstrap = "^3.3.7.1"
+torch = "2.2.2"    # df: not ^2.3.1 because it somehow does not work on my machine. I guess it is because we are using python 3.11. I guess it does not support it???
+pandas = "^1.5.3"
+numpy = "^1.24.0"
+lightgbm = "^4.0.0"
+scikit-learn = "^1.2.0"
+requests = "^2.32.3"
+psycopg2-binary = "^2.9.9"  # df: Is a driver for the PostgreSQL db
+keybert = "^0.8.5"
+spacy = "^3.7.5"
+matplotlib = "^3.9.1"
+jupyter = "^1.0.0"
+ipywidgets = "^8.1.3"
+docker = "^7.1.0"
+
+
+[tool.poetry.group.crawl.dependencies]
+robotexclusionrulesparser = "^1.7.1"
+beautifulsoup4 = "^4.12.3"
+urllib3 = "^2.2.2"
+nltk = "^3.8.1"
+openpyxl = "^3.1.5"
+simhash = "^2.1.2"
+
+
+[tool.poetry.group.ranker.dependencies]
+scikit-learn = "^1.5.0"
+joblib = "^1.1.0"
+scipy = "^1.7.3"
+datasets = "^1.14.0"
+yake = "^0.4.8"
+accelerate = "^0.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

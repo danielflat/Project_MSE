@@ -12,9 +12,8 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-from torch.utils.data import Dataset, DataLoader
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from transformers import Trainer, TrainingArguments, BertTokenizer
+from torch.utils.data import DataLoader, Dataset
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, BertTokenizer, Trainer, TrainingArguments
 
 from db.DocumentRepository import DocumentRepository
 
@@ -24,13 +23,41 @@ DEBUG = True
 class RankerFlat:
     def __init__(self):
         self.documentRepository = DocumentRepository()
+
+        # Here we are using the Bert-Tokenizer to get a map from words to int and vice versa.
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-    def rank_query(self, query):
+    def rank_query(self, query: str, n=100, rerank_documents=20):
+        """
+        Returns the top n documents of a given query.
+
+        Parameters
+        query: The input query of the user.
+        n: The top n documents to return. Default 100.
+        rerank_documents: The number of documents to rerank. Default 20.
+
+        Returns
+        The top n ranked documents for that query.
+        """
+
+        # 1: encode the query to an integer representation for BM25
         tokenized_query = self.tokenizer.encode(query)
+
+        # 2: calculate BM25
         documents_vectors = self.documentRepository.getEncodedTextOfAllDocuments()
         bm25_scores = self.rank_BM25(tokenized_query, documents_vectors)
-        return bm25_scores
+
+        # 3: sort the BM25 scores and only keep the top n documents
+        top_n_bm25_scores = dict(sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)[:n])
+
+        # 4: rerank the top n scores with a neural ranker
+        rerank_documents = dict(sorted(top_n_bm25_scores.items(), key=lambda x: x[1], reverse=True)[:rerank_documents])
+        reranked_scores = rerank_documents
+
+        # 5: combining scores to get the final ranking.
+        final_ranking = reranked_scores # TODO: Implement
+
+        return final_ranking
 
     def _compute_tf(self, token, doc_vec):
         return np.sum(doc_vec == token)
@@ -103,8 +130,14 @@ class RankerFlat:
 
             scores[url] = score
 
-        sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
-        return sorted_scores
+        return scores
+
+class NeuralRanker(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self
+
 
 def tokenizer(doc):
     return doc.split()
@@ -113,6 +146,8 @@ class Ranker(ABC):
     """
     Abstract base class for all Rankers.
     """
+    def __init__(self):
+        self.documentRepository = DocumentRepository()
 
     @abstractmethod
     def get_scores(self, query):

@@ -30,7 +30,6 @@ class DocumentRepository:
 
             self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-
             # for sanity check (SC)
             print("SC: Connected to the db. Now you can go and build the best search engine around!")
         except (Exception, psycopg2.Error) as error:
@@ -84,6 +83,23 @@ class DocumentRepository:
                                                           id=row[0]) for row in rows]
 
         return result_list
+
+    def getDocumentOfUrl(self, url: str) -> DocumentEntry:
+        self.cursor.execute("SELECT * FROM documents WHERE url = (%s)", (url,))
+        rows = self.cursor.fetchall()
+
+        assert len(rows) == 1
+        row = rows[0]
+        # Convert rows to DocumentEntry
+        return DocumentEntry(url=row[1],
+                             title=row[2],
+                             headings=row[3],
+                             page_text=row[4],
+                             keywords=row[5],
+                             accessed_timestamp=row[6],
+                             internal_links=row[7],
+                             external_links=row[8],
+                             id=row[0])
 
     def saveDocument(self, document: DocumentEntry):
         """
@@ -167,7 +183,7 @@ class DocumentRepository:
 
             # 2. Create a new dump.sql of the current content of the db
             os.system(f"docker exec -t {container_id} pg_dump -U user search_engine_db > {dump_path}")
-            
+
             print("SC: Successfully overwritten the old dump. Now you only need to push it to the repository!")
 
         except DockerException:
