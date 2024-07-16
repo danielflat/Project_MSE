@@ -1,12 +1,14 @@
 import uuid
 from datetime import datetime
 
+import torch
+
 
 class DocumentEntry(object):
 
     def __init__(self, url: str, title: str, headings: list[str], page_text: str, keywords: list[str],
                  accessed_timestamp: datetime, internal_links: list[str],
-                 external_links: list[str], id=None):
+                 external_links: list[str], enc_text: torch.tensor = None, id=None):
         """
         The constructor for each document entry. This can be saved in our database then
         :param url: The string of the url
@@ -24,10 +26,11 @@ class DocumentEntry(object):
         self.accessed_timestamp = accessed_timestamp
         self.internal_links = internal_links
         self.external_links = external_links
+        self.enc_text = enc_text
 
     def __str__(self):
         return (str(self.id), self.url, self.title, self.headings, self.page_text, self.keywords,
-                self.accessed_timestamp, self.internal_links, self.external_links)
+                self.accessed_timestamp, self.internal_links, self.external_links, self.enc_text)
 
     def __repr__(self):
         """
@@ -44,8 +47,8 @@ class DocumentEntry(object):
                 f"headings={self.headings}, "
                 f"page_text={text_display}, "
                 f"keywords={keywords_display}, "
-                f"accessed_timestamp={self.accessed_timestamp}], "
-                f"internal_links={self.internal_links}], "
+                f"accessed_timestamp={self.accessed_timestamp}, "
+                f"internal_links={self.internal_links}, "
                 f"external_links={self.external_links}]")
 
     # def __eq__(self, other):
@@ -75,6 +78,6 @@ class DocumentEntry(object):
                 f"headings={self.headings}, "
                 f"page_text={self.page_text}, "
                 f"keywords={self.keywords}, "
-                f"accessed_timestamp={self.accessed_timestamp}], "
-                f"internal_links={self.internal_links}], "
+                f"accessed_timestamp={self.accessed_timestamp}, "
+                f"internal_links={self.internal_links}, "
                 f"external_links={self.external_links}]")

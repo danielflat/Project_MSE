@@ -3,6 +3,7 @@ import os
 import docker
 import numpy as np
 import psycopg2
+import torch
 from docker.errors import DockerException
 from psycopg2.extras import execute_values
 from transformers import BertTokenizer
@@ -38,24 +39,24 @@ class DocumentRepository:
         # We save every query expression, so we have a good overview which operations we do with the database
         self.insertQuery: str = """
                                 INSERT INTO documents (id, url, title, headings, page_text, keywords,
-                                 accessed_timestamp, internal_links, external_links) VALUES 
-                                 (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                                 accessed_timestamp, internal_links, external_links, enc_text) VALUES 
+                                 (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
                                 """
         self.insertAllQuery: str = """
-                        INSERT INTO documents (id, url, title, headings, page_text, keywords, accessed_timestamp, internal_links, external_links) VALUES %s 
+                        INSERT INTO documents (id, url, title, headings, page_text, keywords, accessed_timestamp, internal_links, external_links, enc_text) VALUES %s 
                         """
         self.updateQuery = """
                 UPDATE documents
-                SET id = %s,
-                    url = %s,
+                SET url = %s,
                     title = %s,
                     headings = %s,
                     page_text = %s,
                     keywords = %s,
                     accessed_timestamp = %s,
                     internal_links = %s,
-                    external_links = %s
-                WHERE url = %s;
+                    external_links = %s,
+                    enc_text = %s
+                WHERE id = %s;
                 """
 
         self.deleteQuery: str = """
@@ -80,6 +81,7 @@ class DocumentRepository:
                                                           accessed_timestamp=row[6],
                                                           internal_links=row[7],
                                                           external_links=row[8],
+                                                          enc_text=torch.tensor([float(d) for d in row[9]]) if row[9] is not None else None,
                                                           id=row[0]) for row in rows]
 
         return result_list
@@ -115,10 +117,10 @@ class DocumentRepository:
         """
         Updates a document of the database
         """
-        values = [str(document.id), document.url, document.title, document.headings, document.page_text,
+        values = [document.url, document.title, document.headings, document.page_text,
                   document.keywords,
                   document.accessed_timestamp,
-                  document.internal_links, document.external_links, document.url]
+                  document.internal_links, document.external_links, document.enc_text.tolist(), str(document.id)]
 
         self.cursor.execute(self.updateQuery, values)
         self.connection.commit()
@@ -143,6 +145,13 @@ class DocumentRepository:
         execute_values(self.cursor, self.insertAllQuery, values)
         self.connection.commit()
         print("SC: All documents saved.")
+
+    def fillWithEncodedText(self, all_docs: list[DocumentEntry]) -> list[DocumentEntry]:
+        for doc in all_docs:
+            encode = self.tokenizer.encode(doc.page_text, add_special_tokens=False)
+            doc_vec = torch.tensor(encode)
+            doc.enc_text = doc_vec
+        return all_docs
 
     def getEncodedTextOfAllDocuments(self) -> dict[str, np.array]:
         """
