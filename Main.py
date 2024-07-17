@@ -4,7 +4,7 @@ from flask import Flask, render_template
 from flask_bootstrap import Bootstrap
 
 from ranker.QueryResult import QueryResult
-from ranker.ranker import RankerFlat
+from ranker.ranker import Ranker
 
 app = Flask(__name__)
 Bootstrap(app)
@@ -35,7 +35,7 @@ Bootstrap(app)
 #
 # ranker = BM25Okapi(tokenized_corpus)
 
-ranker_flat = RankerFlat()
+ranker_flat = Ranker()
 
 
 @app.route("/")

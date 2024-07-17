@@ -1,9 +1,11 @@
 import os
+import pickle
 
 import docker
 import numpy as np
 import psycopg2
 import torch
+import zlib
 from docker.errors import DockerException
 from psycopg2.extras import execute_values
 from transformers import BertTokenizer
@@ -231,3 +233,49 @@ class DocumentRepository:
         except docker.errors.DockerException as e:
             print(f"Error: {e}")
             return None
+
+    def load_idf(self):
+        """
+        Loads the idf dictionary from the database for BM25 based on our index.
+        """
+        self.cursor.execute("SELECT key, value FROM idfs")
+        rows = self.cursor.fetchall()
+
+        # convert
+        loaded_dict = {key: value for key, value in rows}
+
+        return loaded_dict
+
+    def load_tf(self):
+        """
+        Loads the tf tensor from the db for BM25 based on our index.
+        """
+        # Because the tf tensor is too big, we have to save it via chunks and compose it again
+
+        # 1. Step: load chunks
+        self.cursor.execute('SELECT data FROM tfs ORDER BY chunk_id')
+        chunks = self.cursor.fetchall()
+        compressed_data = b''.join([chunk[0] for chunk in chunks])
+
+        # 2. Step: decompress and deserialize the data
+        serialized_data = zlib.decompress(compressed_data)
+        numpy_array_restored = pickle.loads(serialized_data)
+
+        # 3. Step: convert the np array back to a torch tensor
+        tensor_restored = torch.tensor(numpy_array_restored, dtype=torch.int32)
+
+        return tensor_restored
+
+    def load_tf_metadata(self):
+        """
+        Loads the offline computed tf metadata for BM25.
+        """
+        self.cursor.execute(
+            'SELECT doc_lengths, max_term, avg_doc_len FROM tf_meta WHERE id = 1')
+
+        meta_data = self.cursor.fetchone()
+        doc_lengths = meta_data[0]
+        max_term = meta_data[1]
+        avg_doc_len = meta_data[2]
+
+        return doc_lengths, max_term, avg_doc_len
