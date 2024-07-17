@@ -12,10 +12,13 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from summarizer.sbert import SBertSummarizer
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, BertTokenizer, Trainer, TrainingArguments
 
+from db.DocumentEntry import DocumentEntry
 from db.DocumentRepository import DocumentRepository
+from ranker.QueryResult import QueryResult
 
 DEBUG = True
 
@@ -26,38 +29,154 @@ class RankerFlat:
 
         # Here we are using the Bert-Tokenizer to get a map from words to int and vice versa.
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.summarizer = SBertSummarizer('paraphrase-MiniLM-L6-v2')
 
-    def rank_query(self, query: str, n=100, rerank_documents=20):
+        self.all_docs = self.documentRepository.loadAllDocuments()
+        print("All documents loaded.")
+
+        # print("Now IDF gets precomputed. This might take a while...")
+        # vectors_list = [doc.enc_text for doc in self.all_docs]
+        # self.avg_doc_len = np.mean([len(i) for i in vectors_list])
+        # self.idf = self._compute_idf(vectors_list)
+        # self.term_frequency, self.document_frequency = self._compute_frequencies()
+        # print("IDF computed. Now you can use the engine")
+
+
+    def rank_query(self, query: str, documents, n=100):
         """
         Returns the top n documents of a given query.
 
         Parameters
         query: The input query of the user.
         n: The top n documents to return. Default 100.
-        rerank_documents: The number of documents to rerank. Default 20.
 
         Returns
         The top n ranked documents for that query.
         """
 
-        # 1: encode the query to an integer representation for BM25
-        tokenized_query = self.tokenizer.encode(query)
+        # 1: calculate BM25 and keep the ranking for the top n documents
+        bm25_scores = self.rank_BM25v2(query, documents, n=n)
 
-        # 2: calculate BM25
-        documents_vectors = self.documentRepository.getEncodedTextOfAllDocuments()
-        bm25_scores = self.rank_BM25(tokenized_query, documents_vectors)
+        # 2: rerank the top n documents again with a neural ranker
+        neural_scores = bm25_scores # TODO: Implement
 
-        # 3: sort the BM25 scores and only keep the top n documents
-        top_n_bm25_scores = dict(sorted(bm25_scores.items(), key=lambda x: x[1], reverse=True)[:n])
-
-        # 4: rerank the top n scores with a neural ranker
-        rerank_documents = dict(sorted(top_n_bm25_scores.items(), key=lambda x: x[1], reverse=True)[:rerank_documents])
-        reranked_scores = rerank_documents
-
-        # 5: combining scores to get the final ranking.
-        final_ranking = reranked_scores # TODO: Implement
+        # 3 (Optional): combining scores to get the final ranking.
+        final_ranking = neural_scores # TODO: Implement
 
         return final_ranking
+
+    def _compute_tfv2(self, token, doc_vec):
+        return np.sum(doc_vec == token)
+
+    def _calculate_tf_and_lengthsv2(self, tensor_docs):
+        """
+        Represents term frequency and length of documents.
+
+        Results:
+        term_frequency: Term frequency as a tensor for each token.
+        doc_lengths: The length of all documents.
+        max_term: The maximum supported token of the term_frequency tensor.
+        """
+        # Mask for valid terms (non-padded elements)
+        valid_mask = tensor_docs != -1
+
+        # Calculate document lengths
+        doc_lengths = valid_mask.sum(dim=1).tolist()
+
+        # Create a tensor to hold term frequencies
+        max_term = int(tensor_docs.max().item())
+        term_frequency = torch.zeros((tensor_docs.size(0), max_term + 1), dtype=torch.int)
+
+        # Count term frequencies
+        for doc_idx, doc in enumerate(tensor_docs):
+            for term in doc[valid_mask[doc_idx]]:
+                term_frequency[doc_idx, term] += 1
+
+        return term_frequency, doc_lengths, max_term
+
+    def _compute_idfv2(self, tensor_docs):
+        """
+        Computes IDF with fancy tensor magic.
+
+        Parameter:
+        tensor_docs nxm tensor: Contains n documents as its rows and a padded representation of the text as columns. m are the maximum number of tokens in 1 of these n documents.
+        If a text of a document is too small, it gets padded up using -1.
+
+        Returns:
+        dict: tokens as integer keys and idf_scores as float values
+
+
+        """
+        N = tensor_docs.shape[0]  # Number of documents
+        term_doc_count = defaultdict(int)
+
+        for doc in tensor_docs:
+            unique_terms = torch.unique(doc[doc != -1])
+            for term in unique_terms:
+                term_doc_count[term.item()] += 1
+
+        unique_terms = list(term_doc_count.keys())
+        idf_scores = [np.log(N / (term_doc_count[term] + 1)) for term in unique_terms]
+
+        return dict(zip(unique_terms, idf_scores))
+
+    def rank_BM25v2(self, query: str, documents: list[DocumentEntry], k=1.5, b=0.75, n=100):
+        """
+        Calculate the Okapi Best Model 25 scores for a set of documents given a query.
+        The BM25 score for a document D given a query Q is calculated as:
+        BM25(D, Q) = Σ [ IDF(q_i) * (f(q_i, D) * (k + 1)) / (f(q_i, D) + k * (1 - b + b * (|D| / avgdl))) ]
+
+        Note: The BM25 score of a document is <= 0 but can be > 1.
+
+        Where:
+            - q_i: the i-th term in the query Q.
+            - f(q_i, D): term frequency of q_i in document D.
+            - |D|: length of document D.
+            - avgdl: average document length in the corpus.
+            - k: controls the term frequency saturation. Typical values range from 1.2 to 2.0.
+            - b: controls the length normalization. Typical values range from 0.75 to 1.0.
+            - IDF(q_i): inverse document frequency of the term q_i.
+
+        Parameters:
+            query (string): the query of the user.
+            documents (list of DocumentEntry): list of all documents available
+            k (float, optional): term frequency saturation parameter. Default is 1.5.
+            b (float, optional): length normalization parameter. Default is 0.75.
+
+        Returns:
+            QueryResult: the results of the BM25 calculation.
+        """
+        # Compute the number of documents
+        number_docs = len(documents)
+        tokenized_query = self.tokenizer.encode(query, add_special_tokens=False)
+
+        # TODO: precompute
+        enc_texts = [doc.enc_text for doc in documents]
+        max_length = max(len(doc) for doc in enc_texts)
+        padded_docs = [torch.cat([doc, torch.tensor([-1] * (max_length - doc.size(0)))]) for doc in enc_texts]
+        tensor_docs = torch.stack(padded_docs)
+        tensor_docs = tensor_docs.to(torch.int)
+        idf = self._compute_idfv2(tensor_docs)
+
+        tf, doc_lengths, max_term = self._calculate_tf_and_lengthsv2(tensor_docs)
+        avg_doc_len = sum(doc_lengths) / len(doc_lengths)
+
+        scores = torch.zeros(tensor_docs.shape[0])
+        for term in tokenized_query:
+            idf_term = idf.get(term, np.log(number_docs + 1))
+            for doc_idx in range(tensor_docs.shape[0]):
+                tf_term_doc = tf[doc_idx][term] if term <= max_term else torch.tensor([0])
+                doc_length = doc_lengths[doc_idx]
+                numerator = tf_term_doc * (k + 1)
+                denominator = tf_term_doc + k * (1 - b + b * doc_length / avg_doc_len)
+                scores[doc_idx] += idf_term * numerator / denominator
+
+        # last step: sort them and only keep the top_n
+        sorted_indices = torch.argsort(-scores)[:n]
+        sorted_scores = scores[sorted_indices].tolist()
+        sorted_docs = [documents[i] for i in sorted_indices]
+
+        return QueryResult(query, sorted_docs, sorted_scores)
 
     def _compute_tf(self, token, doc_vec):
         return np.sum(doc_vec == token)
@@ -131,6 +250,27 @@ class RankerFlat:
             scores[url] = score
 
         return scores
+
+    def _compute_score_for_token(self, token, doc_vec, idf, avg_doc_len, doc_length, k, b, n):
+        tf = np.sum(doc_vec == token)
+        numerator = idf.get(token, np.log(n + 1)) * tf * (
+                    k + 1)  # assuming for a new word to have a high IDF-value because it's "rare".
+        denominator = tf + k * (1 - b + b * (doc_length / avg_doc_len))  # length norm
+        return numerator / denominator
+
+    def add_summary_description(self, final_ranking: QueryResult):
+        documents = final_ranking.documents
+        summaries = []
+        for i, doc in enumerate(documents):
+            text = doc.page_text
+            if i >= 6:
+                summary = text
+            else:
+                summary = self.summarizer(text, min_length=60, num_sentences=3, max_length=300)
+            summaries.append(summary)
+        final_ranking.summaries = summaries
+        return final_ranking
+
 
 class NeuralRanker(torch.nn.Module):
 

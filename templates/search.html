@@ -20,7 +20,7 @@
         </a>
         <form class="d-flex searchNav" role="search">
             <input id="searchQueryNav" class="form-control me-2" type="search" placeholder="Search" aria-label="Search"
-                   value="{{ search_string }}">
+                   value="{{ queryResult.query }}">
             <button class="btn btn-outline-primary" type="submit">Search</button>
         </form>
     </div>
@@ -28,17 +28,18 @@
 
 <div class="container bg-light pb-3">
     <div class="row row-cols-2 row-gap-3">
-        {% for result in results %}
+        {% for i in range(queryResult.documents|length) %}
             <div class="col">
-                <div class="card">
+                <div class="card h-100">
                     <div class="card-header">
-                        {{result.title}}
+                        <a href="{{queryResult.documents[i].url}}" target="_blank" class="h3 link-primary link-underline-opacity-25 link-underline-opacity-100-hover">
+                            {{queryResult.documents[i].title}}
+                        </a>
                     </div>
-                    <div class="card-body">
-<!--                    <h5 class="card-title">Special title treatment</h5>-->
-                        <!-- At least some content for now. We should not present a score to the user. Let's exchange it with something else -->
-                        <p class="card-text">Score: {{result.score}}</p>
-                        <a href="{{result.url}}" target="_blank" class="btn btn-primary">Go to Website</a>
+                    <div class="card-body d-flex flex-column">
+                         <p class="card-text mb-auto">{{ queryResult.documents[i].summary }} </p>
+                        <p class="card-text">Score: {{ queryResult.scores[i] }} </p>
+                        <a href="{{queryResult.documents[i].url}}" target="_blank" class="btn btn-primary">Go to Website</a>
                     </div>
                 </div>
             </div>
@@ -49,7 +50,7 @@
 <script>
     document.querySelector('.searchNav').onsubmit = function(event) {
         let queryNav = document.getElementById("searchQueryNav").value;
-        this.action = `/${queryNav}`;
+        this.action = `/search/${queryNav}`;
         this.submit();
     };
 </script>

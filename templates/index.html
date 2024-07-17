@@ -45,13 +45,13 @@
 <script>
     document.querySelector('.searchNav').onsubmit = function(event) {
         let queryNav = document.getElementById("searchQueryNav").value;
-        this.action = `/${queryNav}`;
+        this.action = `/search/${queryNav}`;
         this.submit();
     };
 
     document.querySelector('.searchForm').onsubmit = function(event) {
         let queryForm = document.getElementById("searchQueryForm").value;
-        this.action = `/${queryForm}`;
+        this.action = `/search/${queryForm}`;
         this.submit();
     };
 </script>

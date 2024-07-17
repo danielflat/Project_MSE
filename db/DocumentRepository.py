@@ -39,11 +39,11 @@ class DocumentRepository:
         # We save every query expression, so we have a good overview which operations we do with the database
         self.insertQuery: str = """
                                 INSERT INTO documents (id, url, title, headings, page_text, keywords,
-                                 accessed_timestamp, internal_links, external_links, enc_text) VALUES 
-                                 (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                                 accessed_timestamp, internal_links, external_links, enc_text, summary) VALUES 
+                                 (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
                                 """
         self.insertAllQuery: str = """
-                        INSERT INTO documents (id, url, title, headings, page_text, keywords, accessed_timestamp, internal_links, external_links, enc_text) VALUES %s 
+                        INSERT INTO documents (id, url, title, headings, page_text, keywords, accessed_timestamp, internal_links, external_links, enc_text, summary) VALUES %s 
                         """
         self.updateQuery = """
                 UPDATE documents
@@ -55,7 +55,8 @@ class DocumentRepository:
                     accessed_timestamp = %s,
                     internal_links = %s,
                     external_links = %s,
-                    enc_text = %s
+                    enc_text = %s,
+                    summary = %s
                 WHERE id = %s;
                 """
 
@@ -67,6 +68,22 @@ class DocumentRepository:
         self.deleteAllQuery: str = """
                                 DELETE FROM documents
                                 """
+
+    def _compute_idf(self, documents: list[np.array]):
+        print("SC: Computing document IDF...")
+        N = len(documents)
+        idf = {}
+        for document in documents:
+            for word in document:
+                if word in idf:
+                    idf[word] += 1
+                else:
+                    idf[word] = 1
+        print("SC:  document IDF...")
+        for word, count in idf.items():
+            idf[word] = np.log(((N + 1) / (count + 0.5)) + 1)
+        print("SC: Finished computing document IDF...")
+        return idf
 
     def loadAllDocuments(self) -> list[DocumentEntry]:
         self.cursor.execute("SELECT * FROM documents")
@@ -82,6 +99,7 @@ class DocumentRepository:
                                                           internal_links=row[7],
                                                           external_links=row[8],
                                                           enc_text=torch.tensor([float(d) for d in row[9]]) if row[9] is not None else None,
+                                                          summary=row[10],
                                                           id=row[0]) for row in rows]
 
         return result_list
@@ -101,6 +119,8 @@ class DocumentRepository:
                              accessed_timestamp=row[6],
                              internal_links=row[7],
                              external_links=row[8],
+                             enc_text=row[9],
+                             summary=row[10],
                              id=row[0])
 
     def saveDocument(self, document: DocumentEntry):
@@ -120,7 +140,8 @@ class DocumentRepository:
         values = [document.url, document.title, document.headings, document.page_text,
                   document.keywords,
                   document.accessed_timestamp,
-                  document.internal_links, document.external_links, document.enc_text.tolist(), str(document.id)]
+                  document.internal_links, document.external_links, document.enc_text.tolist(), document.summary,
+                  str(document.id)]
 
         self.cursor.execute(self.updateQuery, values)
         self.connection.commit()
@@ -146,12 +167,6 @@ class DocumentRepository:
         self.connection.commit()
         print("SC: All documents saved.")
 
-    def fillWithEncodedText(self, all_docs: list[DocumentEntry]) -> list[DocumentEntry]:
-        for doc in all_docs:
-            encode = self.tokenizer.encode(doc.page_text, add_special_tokens=False)
-            doc_vec = torch.tensor(encode)
-            doc.enc_text = doc_vec
-        return all_docs
 
     def getEncodedTextOfAllDocuments(self) -> dict[str, np.array]:
         """
@@ -173,7 +188,7 @@ class DocumentRepository:
         self.connection.commit()
         print("SC: Deleted all documents.")
 
-    def overwrite_dumb(self):
+    def overwrite_dump(self):
         """
         Overwrites the old "./db/dump.sql" with the current state of your database-container.
         """

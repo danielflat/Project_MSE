@@ -8,7 +8,7 @@ class DocumentEntry(object):
 
     def __init__(self, url: str, title: str, headings: list[str], page_text: str, keywords: list[str],
                  accessed_timestamp: datetime, internal_links: list[str],
-                 external_links: list[str], enc_text: torch.tensor = None, id=None):
+                 external_links: list[str], enc_text: torch.tensor = None, summary: str = None, id=None):
         """
         The constructor for each document entry. This can be saved in our database then
         :param url: The string of the url
@@ -27,10 +27,11 @@ class DocumentEntry(object):
         self.internal_links = internal_links
         self.external_links = external_links
         self.enc_text = enc_text
+        self.summary = summary
 
     def __str__(self):
         return (str(self.id), self.url, self.title, self.headings, self.page_text, self.keywords,
-                self.accessed_timestamp, self.internal_links, self.external_links, self.enc_text)
+                self.accessed_timestamp, self.internal_links, self.external_links, self.enc_text.tolist(), self.summary)
 
     def __repr__(self):
         """
@@ -50,23 +51,6 @@ class DocumentEntry(object):
                 f"accessed_timestamp={self.accessed_timestamp}, "
                 f"internal_links={self.internal_links}, "
                 f"external_links={self.external_links}]")
-
-    # def __eq__(self, other):
-    #     if isinstance(other, DocumentEntry):
-    #         return (str(self.id) == str(other.id)
-    #                 and self.url == other.url
-    #                 and self.title == other.title
-    #                 and self.headings == other.headings
-    #                 and self.page_text == other.page_text
-    #                 and self.keywords == other.keywords
-    #                 and self.accessed_timestamp == other.accessed_timestamp
-    #                 and self.internal_links == other.internal_links
-    #                 and self.external_links == other.external_links)
-    #     return False
-    #
-    # def __hash__(self):
-    #     return hash((str(self.id), self.url, self.title, tuple(self.headings), self.page_text, tuple(self.keywords),
-    #             self.accessed_timestamp, tuple(self.internal_links), tuple(self.external_links)))
 
     def fullString(self):
         """
