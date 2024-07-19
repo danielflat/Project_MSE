@@ -1,9 +1,13 @@
 from collections import defaultdict
+import os
+import time
 
 import numpy as np
+import pandas as pd
 import torch
 from summarizer.sbert import SBertSummarizer
 from transformers import BertTokenizer
+from IPython.display import display
 
 from db.DocumentEntry import DocumentEntry
 from db.DocumentRepository import DocumentRepository
@@ -258,3 +262,52 @@ class Ranker:
             summaries.append(summary)
         final_ranking.summaries = summaries
         return final_ranking
+
+
+def setup_docker(sleep_time=15):
+    os.system(f"""
+        docker compose down;
+        docker compose up -d --build db;
+        sleep {sleep_time};
+        """)
+
+
+def main():
+    # Setup Docker
+    setup_docker()
+
+    from ranker.Ranker import Ranker
+
+    ranker = Ranker()
+    all_docs = ranker.all_docs
+    print(f"Total documents available: {len(all_docs)}")
+
+    query = "food and drinks"  # Can be changed for experimenting
+    index_length = len(
+        all_docs)  # Use len(all_docs) to evaluate on full index OR a number, e.g., 1000, to only evaluate on the first 1000 documents
+    n = 100
+
+    # Prepare index.
+    trun_docs = all_docs[:index_length]
+
+    start_time = time.time()
+    print(f"Ranking is starting...")
+
+    query_result = ranker.rank_query(query, documents=trun_docs, n=n)
+
+    end_time = time.time()
+    print(f"Query: '{query}', Number of documents: {index_length}, Time required: {end_time - start_time} seconds")
+
+    urls = [doc.url for doc in query_result.documents]
+    data = {'query': query_result.query, 'urls': urls, 'scores': query_result.scores}
+
+    df = pd.DataFrame(data)
+
+    print(f"Size of dataset: {len(df)}. Is it the proper size? {n == len(df)}")
+
+    pd.set_option('display.max_rows', 100)  # Ensure at least 100 rows are displayed
+    display(df.head(n=n))
+
+
+if __name__ == "__main__":
+    main()
