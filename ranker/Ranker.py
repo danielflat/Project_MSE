@@ -12,6 +12,7 @@ from IPython.display import display
 from db.DocumentEntry import DocumentEntry
 from db.DocumentRepository import DocumentRepository
 from ranker.QueryResult import QueryResult
+from TextEmbeddings import *
 
 
 class Ranker:
@@ -23,6 +24,13 @@ class Ranker:
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         self.summarizer = SBertSummarizer('paraphrase-MiniLM-L6-v2')
 
+        # Here we load the trained model for reranking
+
+        self.max_length = 512  # Maximum length of a document
+        self.embedding_dim = 128
+        self.vocab_size = self.tokenizer.vocab_size
+        print(f"Vocab size: {self.vocab_size}")
+
         print("Loading Documents first...")
         self.all_docs = self.documentRepository.loadAllDocuments()
         print("All documents loaded.")
@@ -32,6 +40,14 @@ class Ranker:
         self.tf = self.documentRepository.load_tf()
         self.doc_lengths, self.max_term, self.avg_doc_len = self.documentRepository.load_tf_metadata()
         print("TF and IDF loaded.")
+
+        try:
+            print("Loading trained model...")
+            self.trained_ranker = self._load_trained_model()
+            print("Trained model loaded.")
+        except FileNotFoundError:
+            print("No trained model found. Please train the model first.")
+
 
     def rank_query(self, query: str, documents, n=100):
         """
@@ -49,12 +65,52 @@ class Ranker:
         bm25_scores = self.rank_BM25v2(query, documents, n=n)
 
         # 2: rerank the top n documents again with a neural ranker
-        neural_scores = bm25_scores  # TODO: df: Implement. This is for you Lilli and Lenard!
+        top_docs = bm25_scores.documents[:n]
+        neural_scores = self.rerank_with_neural_model(query, top_docs)
+        try:
+            neural_scores = self.rerank_with_neural_model(query, top_docs)
+        except Exception as e:
+            print(f"An error occurred during reranking with the neural model: {e}")
+            neural_scores = bm25_scores
 
         # 3 (Optional): combining scores to get the final ranking.
         final_ranking = neural_scores  # TODO: df: Implement. This is only optional if we want to ensemble rankings. Otherwise we can just delete it
 
         return final_ranking
+
+    def _load_trained_model(self):
+        model = TextEmbeddingModel(self.vocab_size, self.embedding_dim, self.max_length)
+        model.load_state_dict(torch.load('model/rerank_model.pth'))
+        model.eval()
+        return model
+
+    def rerank_with_neural_model(self, query: str, documents: list[DocumentEntry]):
+        query_encoded = self.tokenizer.encode(query, add_special_tokens=False, max_length=self.max_length,
+                                              padding='max_length', truncation=True)
+        query_tensor = torch.tensor(query_encoded).unsqueeze(0)
+        query_embedding = self.trained_ranker(query_tensor)
+
+        neural_scores = []
+        for doc in documents:
+            doc_encoded = self.tokenizer.encode(doc.page_text, add_special_tokens=False, max_length=self.max_length,
+                                                padding='max_length', truncation=True)
+            doc_tensor = torch.tensor(doc_encoded).unsqueeze(0)
+            doc_embedding = self.trained_ranker(doc_tensor)
+
+            # Reshape the embeddings to [max_length, embedding_dim] to calculate cosine similarity
+            query_embedding_reshaped = query_embedding.view(-1,
+                                                            self.embedding_dim)  # Shape: [max_length, embedding_dim]
+            doc_embedding_reshaped = doc_embedding.view(-1, self.embedding_dim)  # Shape: [max_length, embedding_dim]
+
+            cosine_sim = nn.functional.cosine_similarity(query_embedding_reshaped, doc_embedding_reshaped, dim=-1).mean().item()
+            neural_scores.append((doc, cosine_sim))
+
+        neural_scores.sort(key=lambda x: x[1], reverse=True)
+
+        ranked_documents = [doc for doc, score in neural_scores]
+        scores = [score for doc, score in neural_scores]
+
+        return QueryResult(query, ranked_documents, scores)
 
     def _calculate_tf_and_lengthsv2(self, tensor_docs):
         """
