@@ -1,18 +1,17 @@
-from collections import defaultdict
+import heapq
 import os
 import time
+from collections import defaultdict
 
 import numpy as np
-import pandas as pd
-import torch
-from summarizer.sbert import SBertSummarizer
-from transformers import BertTokenizer
 from IPython.display import display
+from summarizer.sbert import SBertSummarizer
 
 from db.DocumentEntry import DocumentEntry
 from db.DocumentRepository import DocumentRepository
 from ranker.QueryResult import QueryResult
-from TextEmbeddings import *
+from ranker.TextEmbeddings import *
+from utils.directoryutil import get_path
 
 
 class Ranker:
@@ -48,7 +47,6 @@ class Ranker:
         except FileNotFoundError:
             print("No trained model found. Please train the model first.")
 
-
     def rank_query(self, query: str, documents, n=100):
         """
         Returns the top n documents of a given query.
@@ -61,26 +59,34 @@ class Ranker:
         The top n ranked documents for that query.
         """
 
-        # 1: calculate BM25 and keep the ranking for the top n documents
-        bm25_scores = self.rank_BM25v2(query, documents, n=n)
+        # 1: calculate BM25 and keep the ranking for the top 200 documents
+        top_bm25_number = n   # Set it either to 'n' or to a number between 100 and 200
+        print(f"top_bm25_number: {top_bm25_number}")
+        bm25_scores = self.rank_BM25v2(query, documents, n=top_bm25_number)
 
-        # 2: rerank the top n documents again with a neural ranker
-        top_docs = bm25_scores.documents[:n]
-        neural_scores = self.rerank_with_neural_model(query, top_docs)
+        # 2 (Optional): diversity BM25 list to get more diverse documents. Keep the top n documents. Otherwise keep top 100 from BM25
+        l = 1   # 0 <= l <= 1: controls the relevance rate. If l = 1, we just keep the BM25 scores
+        if l == 1 or top_bm25_number == n:
+            diversed_scores = QueryResult(bm25_scores.query, bm25_scores.documents[:n], bm25_scores.scores[:n])
+        else:
+            diversed_scores = self.diversify(bm25_scores, n=n, l=l)
+
+        # 3: rerank the top n documents again with a neural ranker
+        top_docs = diversed_scores.documents[:n]
         try:
             neural_scores = self.rerank_with_neural_model(query, top_docs)
         except Exception as e:
             print(f"An error occurred during reranking with the neural model: {e}")
             neural_scores = bm25_scores
 
-        # 3 (Optional): combining scores to get the final ranking.
+        # 4 (Optional): combining scores to get the final ranking.
         final_ranking = neural_scores  # TODO: df: Implement. This is only optional if we want to ensemble rankings. Otherwise we can just delete it
 
         return final_ranking
 
     def _load_trained_model(self):
         model = TextEmbeddingModel(self.vocab_size, self.embedding_dim, self.max_length)
-        model.load_state_dict(torch.load('model/rerank_model.pth'))
+        model.load_state_dict(torch.load(get_path("ranker/model/rerank_model.pth")))
         model.eval()
         return model
 
@@ -88,7 +94,7 @@ class Ranker:
         query_encoded = self.tokenizer.encode(query, add_special_tokens=False, max_length=self.max_length,
                                               padding='max_length', truncation=True)
         query_tensor = torch.tensor(query_encoded).unsqueeze(0)
-        query_embedding = self.trained_ranker(query_tensor)
+        query_embedding = self.trained_ranker.forward(query_tensor)
 
         neural_scores = []
         for doc in documents:
@@ -102,7 +108,8 @@ class Ranker:
                                                             self.embedding_dim)  # Shape: [max_length, embedding_dim]
             doc_embedding_reshaped = doc_embedding.view(-1, self.embedding_dim)  # Shape: [max_length, embedding_dim]
 
-            cosine_sim = nn.functional.cosine_similarity(query_embedding_reshaped, doc_embedding_reshaped, dim=-1).mean().item()
+            cosine_sim = nn.functional.cosine_similarity(query_embedding_reshaped, doc_embedding_reshaped,
+                                                         dim=-1).mean().item()
             neural_scores.append((doc, cosine_sim))
 
         neural_scores.sort(key=lambda x: x[1], reverse=True)
@@ -215,6 +222,62 @@ class Ranker:
         sorted_docs = [documents[i] for i in sorted_indices]
 
         return QueryResult(query, sorted_docs, sorted_scores)
+
+
+    def measure_diversity(self, unique_words: set, new_words: set, total_docs: int) -> float:
+        combined_unique_words = unique_words.union(new_words)
+        return len(combined_unique_words) / total_docs
+
+    def diversify(self, ranking: QueryResult, n=100, l=1.0) -> QueryResult:
+        class HeapElement:
+            def __init__(self, importance, doc, score):
+                self.importance = importance
+                self.doc = doc
+                self.score = score
+
+            def __lt__(self, other):
+                return self.importance > other.importance  # reverse for max-heap behavior
+
+        reranked = []
+        rescores = []
+        unique_words = set()
+
+        all_docs = ranking.documents
+        all_scores = ranking.scores
+
+        # Add the first entry
+        most_relevant_doc = all_docs[0]
+        most_relevant_score = all_scores[0]
+        reranked.append(most_relevant_doc)
+        rescores.append(most_relevant_score)
+        unique_words.update(most_relevant_doc.enc_text)
+
+        # Priority queue to store potential documents with their importance scores
+        heap = []
+        for doc, score in zip(all_docs[1:], all_scores[1:]):  # Skip the first doc as it's already added
+            new_unique_words = set(doc.enc_text)
+            importance = l * score + (1 - l) * self.measure_diversity(unique_words, new_unique_words, len(reranked) + 1)
+            heapq.heappush(heap, HeapElement(-importance, doc, score))
+
+        while len(reranked) < n and heap:
+            most_important = heapq.heappop(heap)
+            most_important_doc = most_important.doc
+            most_important_score = most_important.score
+            reranked.append(most_important_doc)
+            rescores.append(most_important_score)
+            unique_words.update(most_important_doc.enc_text)
+
+            # Update the heap with new importances
+            new_heap = []
+            for doc, score in zip(all_docs, all_scores):
+                if doc not in reranked:
+                    new_unique_words = set(doc.enc_text)
+                    importance = l * score + (1 - l) * self.measure_diversity(unique_words, new_unique_words,
+                                                                              len(reranked) + 1)
+                    heapq.heappush(new_heap, HeapElement(-importance, doc, score))
+            heap = new_heap
+
+        return QueryResult(ranking.query, reranked, rescores)
 
     def _compute_tf(self, token, doc_vec):
         return np.sum(doc_vec == token)
