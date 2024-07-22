@@ -30,8 +30,11 @@ class DocumentEntry(object):
         self.summary = summary
 
     def __str__(self):
+        enc_text = []
+        if self.enc_text is not None:
+            enc_text = self.enc_text.tolist()
         return (str(self.id), self.url, self.title, self.headings, self.page_text, self.keywords,
-                self.accessed_timestamp, self.internal_links, self.external_links, self.enc_text.tolist(), self.summary)
+                self.accessed_timestamp, self.internal_links, self.external_links, enc_text, self.summary)
 
     def __repr__(self):
         """
