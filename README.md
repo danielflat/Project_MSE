@@ -88,6 +88,8 @@ python Main.py
 ```
 This command runs the `Main.py` file, which is the entry point of the project.
 
+#### Step 4 (optional): Run the crawler
+If you want to run the Crawler, please go to [006_Nika_crawling_with_checkpointing.ipynb](exp/006_Nika_crawling_with_checkpointing.ipynb) and run it. All instructions are provided in the notebook.
 
 ## Dealing with the database 
 
