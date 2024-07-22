@@ -32,7 +32,7 @@ Bootstrap(app)
 # Parameters to control. See the description above for their meaning.
 USE_FRONTEND = True
 BATCH_PATH = "example_queries.txt"
-OUTPUT_PATH = "example_queries_eval_flat_rommel_smilga_diederichs.txt"
+OUTPUT_PATH = "queries_eval_flat_rommel_smilga_diederichs.txt"
 
 ranker = Ranker()
 
@@ -103,7 +103,8 @@ def evaluate_batch(batch_path: str, output_path: str):
     with open(output_path, "w") as f:
         f.write(batch_result)
     end_time = time.time()
-    print(f"Batch evaluation succeded! Results written to {output_path}, Time taken: {end_time - start_time} seconds")
+    print(f"Batch evaluation succeeded! Results written to {output_path}, Time taken: {end_time - start_time} seconds")
+
 
 if __name__ == '__main__':
     """
@@ -114,5 +115,5 @@ if __name__ == '__main__':
         print(f"Starts the frontend with the search engine on http://127.0.0.1:5001. Might take a bit until it works")
         app.run(host='0.0.0.0', port=5001)
     else:
-        print(f"Batch evaluation mode has started")
+        print(f"Batch evaluation mode has started...")
         evaluate_batch(BATCH_PATH, OUTPUT_PATH)
